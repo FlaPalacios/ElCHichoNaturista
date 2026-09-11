@@ -1,0 +1,180 @@
+---
+import Etiqueta from './Etiqueta.astro';
+import { categoriaPorSlug } from '../data/productos.js';
+
+const { producto, indice = null, alto = false } = Astro.props;
+const cat = categoriaPorSlug(producto.categoria);
+const oferta = Boolean(producto.precioAntes);
+const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
+const paraCarrito = {
+  id: producto.id,
+  slug: producto.slug,
+  nombre: producto.nombre,
+  precio: producto.precio,
+  presentacion: producto.presentacion,
+  categoria: producto.categoria,
+  stock: producto.stock,
+};
+---
+
+<article class="ficha" x-data={`{ p: ${JSON.stringify(paraCarrito)} }`}>
+  <a href={`/producto/${producto.slug}`} class="ficha__vista" tabindex="-1" aria-hidden="true">
+    <Etiqueta producto={producto} alto={alto} />
+    {indice !== null && <span class="ficha__indice">{String(indice).padStart(2, '0')}</span>}
+    {oferta && <span class="ficha__oferta">−{dto}%</span>}
+    {producto.stock <= 12 && <span class="ficha__poco">Quedan {producto.stock}</span>}
+  </a>
+
+  <div class="ficha__cuerpo">
+    <p class="ficha__cat">{cat?.nombre}</p>
+    <h3 class="ficha__nombre">
+      <a href={`/producto/${producto.slug}`}>{producto.nombre}</a>
+    </h3>
+    <p class="ficha__pres">{producto.presentacion}</p>
+
+    <div class="ficha__pie">
+      <p class="precio">
+        S/ {producto.precio.toFixed(2)}
+        {oferta && <span class="precio-antes">S/ {producto.precioAntes.toFixed(2)}</span>}
+      </p>
+      <button class="ficha__agregar" @click="$store.carrito.agregar(p)" type="button">
+        <span x-show="$store.carrito.cantidadDe(p.id) === 0">Agregar</span>
+        <span x-cloak x-show="$store.carrito.cantidadDe(p.id) > 0">
+          En carrito · <span x-text="$store.carrito.cantidadDe(p.id)"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<style>
+  .ficha {
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border-top: 1px solid var(--linea-fuerte);
+    padding-top: 0.9rem;
+  }
+
+  .ficha__vista {
+    position: relative;
+    display: block;
+    aspect-ratio: 5 / 6;
+    overflow: hidden;
+    background: var(--papel);
+  }
+
+  .ficha__vista :global(svg) {
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .ficha:hover .ficha__vista :global(svg) {
+    transform: scale(1.04);
+  }
+
+  .ficha__indice {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.7rem;
+    font-family: var(--serif);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    color: var(--tinta-suave);
+    background: rgba(247, 247, 247, 0.82);
+    padding: 0.1rem 0.35rem;
+  }
+
+  .ficha__oferta {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.7rem;
+    background: var(--henna);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 0.22rem 0.45rem;
+  }
+
+  .ficha__poco {
+    position: absolute;
+    bottom: 0.6rem;
+    left: 0.7rem;
+    background: rgba(247, 247, 247, 0.9);
+    border: 1px solid var(--linea-fuerte);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.4rem;
+    color: var(--tinta-suave);
+  }
+
+  .ficha__cuerpo {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding-top: 0.9rem;
+  }
+
+  .ficha__cat {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--jade);
+    margin: 0 0 0.4rem;
+  }
+
+  .ficha__nombre {
+    font-size: 1.06rem;
+    line-height: 1.25;
+    margin: 0 0 0.3rem;
+  }
+
+  .ficha__nombre a {
+    border-bottom: 1px solid transparent;
+  }
+
+  .ficha__nombre a:hover {
+    border-color: var(--salvia);
+    color: var(--salvia);
+  }
+
+  .ficha__pres {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    margin: 0 0 1rem;
+  }
+
+  .ficha__pie {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-top: 1px dotted var(--linea-fuerte);
+    padding-top: 0.7rem;
+  }
+
+  .ficha__pie .precio {
+    margin: 0;
+  }
+
+  .ficha__agregar {
+    background: none;
+    border: 1px solid var(--salvia);
+    color: var(--salvia);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.8rem;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .ficha__agregar:hover {
+    background: var(--salvia);
+    color: #f4f1e8;
+  }
+</style>

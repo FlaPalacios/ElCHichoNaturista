@@ -1,0 +1,405 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductoCard from '../components/ProductoCard.astro';
+import { activos, categorias } from '../data/productos.js';
+
+const lista = activos();
+const precioTope = Math.ceil(Math.max(...lista.map((p) => p.precio)) / 5) * 5;
+
+// Metadatos que Alpine usa para filtrar y ordenar en el navegador.
+const meta = lista.map((p) => ({
+  id: p.id,
+  nombre: p.nombre,
+  busqueda: `${p.nombre} ${p.descripcionCorta} ${p.origen} ${p.presentacion}`.toLowerCase(),
+  categoria: p.categoria,
+  precio: p.precio,
+  oferta: Boolean(p.precioAntes),
+  vendido: Boolean(p.masVendido),
+  destacado: Boolean(p.destacado),
+}));
+
+const conteo = Object.fromEntries(
+  categorias.map((c) => [c.slug, lista.filter((p) => p.categoria === c.slug).length])
+);
+---
+
+<Base
+  title="Catálogo"
+  description="Todo el catálogo de El Chico Naturista: henna, suplementos, aceites esenciales y superalimentos peruanos."
+  activo="catalogo"
+>
+  <div
+    class="catalogo"
+    x-data={`{
+      q: '',
+      cats: [],
+      hasta: ${precioTope},
+      soloOferta: false,
+      orden: 'destacados',
+      tope: ${precioTope},
+      items: ${JSON.stringify(meta)},
+      init() {
+        const u = new URLSearchParams(location.search);
+        if (u.get('q')) this.q = u.get('q');
+        if (u.get('categoria')) this.cats = [u.get('categoria')];
+        if (u.get('orden')) this.orden = u.get('orden');
+      },
+      get filtrados() {
+        const t = this.q.trim().toLowerCase();
+        let r = this.items.filter(i =>
+          (!t || i.busqueda.includes(t)) &&
+          (this.cats.length === 0 || this.cats.includes(i.categoria)) &&
+          i.precio <= this.hasta &&
+          (!this.soloOferta || i.oferta)
+        );
+        const orden = this.orden;
+        r = [...r].sort((a, b) => {
+          if (orden === 'precio-asc') return a.precio - b.precio;
+          if (orden === 'precio-desc') return b.precio - a.precio;
+          if (orden === 'nombre') return a.nombre.localeCompare(b.nombre, 'es');
+          if (orden === 'vendidos') return (b.vendido - a.vendido) || (b.destacado - a.destacado);
+          return (b.destacado - a.destacado) || (b.vendido - a.vendido);
+        });
+        return r;
+      },
+      get ids() { return this.filtrados.map(i => i.id) },
+      posicion(id) { const k = this.ids.indexOf(id); return k === -1 ? 999 : k },
+      limpiar() { this.q = ''; this.cats = []; this.hasta = this.tope; this.soloOferta = false; this.orden = 'destacados' },
+      get hayFiltros() { return this.q !== '' || this.cats.length > 0 || this.hasta < this.tope || this.soloOferta }
+    }`}
+  >
+    <header class="catalogo__cab">
+      <div class="env catalogo__cab-env">
+        <div>
+          <p class="kicker">{lista.length} productos · {categorias.length} departamentos</p>
+          <h1 class="titulo">El catálogo completo</h1>
+        </div>
+        <p class="catalogo__nota">
+          Precios en soles, IGV incluido. El pedido se confirma por WhatsApp; no cobramos en línea.
+        </p>
+      </div>
+    </header>
+
+    <div class="env catalogo__env">
+      <!-- ── Filtros ─────────────────────────────────────────── -->
+      <aside class="filtros" aria-label="Filtros del catálogo">
+        <div class="filtros__caja">
+          <label class="campo">
+            <span class="campo__etq">Buscar</span>
+            <input type="search" x-model="q" placeholder="Henna, maca, romero…" />
+          </label>
+
+          <fieldset class="grupo">
+            <legend class="campo__etq">Departamento</legend>
+            {
+              categorias.map((c) => (
+                <label class="check">
+                  <input type="checkbox" value={c.slug} x-model="cats" />
+                  <span>{c.nombre}</span>
+                  <em>{conteo[c.slug]}</em>
+                </label>
+              ))
+            }
+          </fieldset>
+
+          <div class="grupo">
+            <span class="campo__etq">Precio hasta</span>
+            <input type="range" min="10" max={precioTope} step="1" x-model.number="hasta" class="rango" />
+            <p class="rango__valor">
+              <span x-text="'S/ ' + hasta"></span>
+              <span class="rango__tope">de S/ {precioTope}</span>
+            </p>
+          </div>
+
+          <label class="check check--suelto">
+            <input type="checkbox" x-model="soloOferta" />
+            <span>Solo en oferta</span>
+          </label>
+
+          <button class="filtros__limpiar" x-show="hayFiltros" @click="limpiar()" type="button">
+            Limpiar filtros
+          </button>
+        </div>
+      </aside>
+
+      <!-- ── Resultados ──────────────────────────────────────── -->
+      <section class="resultados">
+        <div class="resultados__barra">
+          <p class="resultados__cuenta">
+            <strong x-text="filtrados.length">{lista.length}</strong>
+            <span x-text="filtrados.length === 1 ? 'producto' : 'productos'">productos</span>
+          </p>
+          <label class="orden">
+            <span class="campo__etq">Ordenar por</span>
+            <select x-model="orden">
+              <option value="destacados">Destacados</option>
+              <option value="vendidos">Más vendidos</option>
+              <option value="precio-asc">Precio: de menor a mayor</option>
+              <option value="precio-desc">Precio: de mayor a menor</option>
+              <option value="nombre">Nombre A–Z</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="rejilla">
+          {
+            lista.map((p) => (
+              <div
+                class="rejilla__celda"
+                x-data={`{ pid: ${p.id} }`}
+                x-show="ids.includes(pid)"
+                :style="'order:' + posicion(pid)"
+              >
+                <ProductoCard producto={p} />
+              </div>
+            ))
+          }
+        </div>
+
+        <p class="sin-resultados" x-show="filtrados.length === 0" x-cloak>
+          No hay productos con esos filtros.
+          <button @click="limpiar()" type="button">Limpiar y ver todo</button>
+        </p>
+      </section>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .catalogo__cab {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+  }
+
+  .catalogo__cab-env {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-block: clamp(2.2rem, 4vw, 3.4rem);
+  }
+
+  .catalogo__cab .kicker {
+    margin-bottom: 0.7rem;
+  }
+
+  .catalogo__nota {
+    max-width: 34ch;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin: 0;
+    text-align: right;
+  }
+
+  .catalogo__env {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 3rem;
+    padding-block: 2.8rem 4rem;
+    align-items: start;
+  }
+
+  /* Filtros */
+  .filtros {
+    position: sticky;
+    top: 110px;
+  }
+
+  .filtros__caja {
+    border-top: 2px solid var(--salvia);
+    padding-top: 1.3rem;
+  }
+
+  .grupo {
+    border: none;
+    margin: 0 0 1.5rem;
+    padding: 0;
+  }
+
+  .grupo legend {
+    padding: 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0;
+    font-size: 0.92rem;
+    cursor: pointer;
+    border-bottom: 1px dotted var(--linea);
+  }
+
+  .check:hover {
+    color: var(--salvia);
+  }
+
+  .check input {
+    accent-color: var(--salvia);
+    width: 15px;
+    height: 15px;
+  }
+
+  .check em {
+    margin-left: auto;
+    font-style: normal;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+  }
+
+  .check--suelto {
+    border-bottom: none;
+    margin-bottom: 1rem;
+  }
+
+  .rango {
+    width: 100%;
+    accent-color: var(--salvia);
+    margin: 0.4rem 0 0.3rem;
+  }
+
+  .rango__valor {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    margin: 0;
+  }
+
+  .rango__valor span:first-child {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  .rango__tope {
+    color: var(--tinta-suave);
+  }
+
+  .filtros__limpiar {
+    background: none;
+    border: 1px solid var(--linea-fuerte);
+    width: 100%;
+    padding: 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--henna);
+    transition: border-color 0.2s;
+  }
+
+  .filtros__limpiar:hover {
+    border-color: var(--henna);
+  }
+
+  /* Resultados */
+  .resultados__barra {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+    padding-bottom: 0.9rem;
+    margin-bottom: 2rem;
+  }
+
+  .resultados__cuenta {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--tinta-suave);
+  }
+
+  .resultados__cuenta strong {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    color: var(--tinta);
+    margin-right: 0.3rem;
+  }
+
+  .orden {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .orden .campo__etq {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .orden select {
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--linea-fuerte);
+    background: #fff;
+    border-radius: 0;
+  }
+
+  .rejilla {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2.4rem 2rem;
+  }
+
+  .rejilla__celda {
+    width: calc((100% - 4rem) / 3);
+  }
+
+  .sin-resultados {
+    padding: 3rem 0;
+    text-align: center;
+    color: var(--tinta-suave);
+  }
+
+  .sin-resultados button {
+    display: block;
+    margin: 0.8rem auto 0;
+    background: none;
+    border: none;
+    color: var(--salvia);
+    text-decoration: underline;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 980px) {
+    .catalogo__env {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+    .filtros {
+      position: static;
+    }
+    .filtros__caja {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0 2rem;
+    }
+    .rejilla__celda {
+      width: calc((100% - 2rem) / 2);
+    }
+    .catalogo__cab-env {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .catalogo__nota {
+      text-align: left;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .filtros__caja {
+      grid-template-columns: 1fr;
+    }
+    .rejilla__celda {
+      width: 100%;
+    }
+    .resultados__barra {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+  }
+</style>

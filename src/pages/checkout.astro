@@ -1,0 +1,582 @@
+---
+import Base from '../layouts/Base.astro';
+import { tienda } from '../data/tienda.js';
+
+const distritos = [
+  'Miraflores', 'San Isidro', 'Surco', 'Barranco', 'San Borja', 'La Molina',
+  'Jesús María', 'Magdalena', 'Pueblo Libre', 'Lince', 'San Miguel', 'Surquillo',
+  'Cercado de Lima', 'Los Olivos', 'San Martín de Porres', 'Callao', 'Otro / provincia',
+];
+---
+
+<Base title="Finalizar pedido" description="Genera tu número de pedido y confírmalo por WhatsApp." activo="checkout">
+  <header class="cab">
+    <div class="env cab__env">
+      <div>
+        <p class="kicker">Paso 2 de 2</p>
+        <h1 class="titulo">Finalizar pedido</h1>
+      </div>
+      <p class="cab__nota">
+        No se cobra nada en línea. Generamos tu número de pedido y lo confirmas por WhatsApp.
+      </p>
+    </div>
+  </header>
+
+  <div
+    class="env checkout"
+    x-cloak
+    x-data={`{
+      hecho: null,
+      enlaceWa: '',
+      intento: false,
+      datos: { nombre: '', telefono: '', correo: '', entrega: 'delivery', direccion: '', distrito: '', referencia: '', pago: 'yape', nota: '' },
+      get errores() {
+        const e = {};
+        if (this.datos.nombre.trim().length < 3) e.nombre = 'Escribe tu nombre completo';
+        if (!/^[0-9\\s+]{9,15}$/.test(this.datos.telefono.trim())) e.telefono = 'Un número de 9 dígitos';
+        if (this.datos.correo && !this.datos.correo.includes('@')) e.correo = 'Correo inválido';
+        if (this.datos.entrega === 'delivery') {
+          if (this.datos.direccion.trim().length < 5) e.direccion = 'Calle y número';
+          if (!this.datos.distrito) e.distrito = 'Elige tu distrito';
+        }
+        return e;
+      },
+      get valido() { return Object.keys(this.errores).length === 0 },
+      confirmar() {
+        this.intento = true;
+        if (!this.valido || $store.carrito.vacio) return;
+        const pedido = $store.pedido.registrar({ ...this.datos }, $store.carrito);
+        this.enlaceWa = $store.pedido.mensajeWhatsApp(pedido);
+        this.hecho = pedido;
+        $store.carrito.vaciar();
+        window.open(this.enlaceWa, '_blank', 'noopener');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }`}
+  >
+    <!-- ── Carrito vacío ───────────────────────────────────────── -->
+    <section class="aviso-vacio" x-show="!hecho && $store.carrito.vacio">
+      <p class="aviso-vacio__t">No hay nada que confirmar</p>
+      <p>Tu carrito está vacío. Agrega productos y vuelve a este paso.</p>
+      <a href="/catalogo" class="btn">Ir al catálogo</a>
+    </section>
+
+    <!-- ── Confirmación ────────────────────────────────────────── -->
+    <section class="listo" x-show="hecho">
+      <p class="kicker">Pedido generado</p>
+      <p class="listo__numero" x-text="hecho?.numero"></p>
+      <h2 class="listo__t">Falta un paso: envíanos el mensaje</h2>
+      <p class="listo__d">
+        Abrimos WhatsApp con el detalle ya escrito. Si no se abrió solo, usa el botón. Tu pedido
+        queda reservado cuando recibimos ese mensaje.
+      </p>
+
+      <div class="listo__acciones">
+        <a :href="enlaceWa" target="_blank" rel="noopener" class="btn btn--wa">Enviar pedido por WhatsApp</a>
+        <a href="/catalogo" class="btn btn--linea">Seguir comprando</a>
+      </div>
+
+      <div class="listo__detalle">
+        <h3>Detalle</h3>
+        <ul>
+          <template x-for="i in hecho?.items || []" :key="i.producto_id">
+            <li>
+              <span x-text="i.cantidad + ' × ' + i.nombre"></span>
+              <span x-text="$store.carrito.soles(i.precio_unitario * i.cantidad)"></span>
+            </li>
+          </template>
+        </ul>
+        <p class="listo__total">
+          <span>Total</span>
+          <strong x-text="$store.carrito.soles(hecho?.total || 0)"></strong>
+        </p>
+        <p class="listo__nota">
+          Guarda tu número de pedido. Lo usamos para ubicar tu compra en el chat.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── Formulario ──────────────────────────────────────────── -->
+    <form class="checkout__cuerpo" x-show="!hecho && !$store.carrito.vacio" @submit.prevent="confirmar()">
+      <div class="formulario">
+        <fieldset class="bloque-form">
+          <legend><span class="indice">01</span> Tus datos</legend>
+
+          <label class="campo">
+            <span class="campo__etq">Nombre completo</span>
+            <input type="text" x-model="datos.nombre" autocomplete="name" placeholder="Nombre y apellido" />
+            <span class="error" x-show="intento && errores.nombre" x-text="errores.nombre"></span>
+          </label>
+
+          <div class="par">
+            <label class="campo">
+              <span class="campo__etq">WhatsApp</span>
+              <input type="tel" x-model="datos.telefono" autocomplete="tel" placeholder="9XX XXX XXX" />
+              <span class="error" x-show="intento && errores.telefono" x-text="errores.telefono"></span>
+            </label>
+
+            <label class="campo">
+              <span class="campo__etq">Correo (opcional)</span>
+              <input type="email" x-model="datos.correo" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
+              <span class="error" x-show="intento && errores.correo" x-text="errores.correo"></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="bloque-form">
+          <legend><span class="indice">02</span> Entrega</legend>
+
+          <div class="opciones">
+            <label class="opcion" :class="datos.entrega === 'delivery' && 'opcion--activa'">
+              <input type="radio" value="delivery" x-model="datos.entrega" />
+              <span class="opcion__t">Delivery</span>
+              <span class="opcion__d">Lima · S/ 12, gratis desde S/ {tienda.envioGratisDesde}</span>
+            </label>
+            <label class="opcion" :class="datos.entrega === 'tienda' && 'opcion--activa'">
+              <input type="radio" value="tienda" x-model="datos.entrega" />
+              <span class="opcion__t">Recojo en tienda</span>
+              <span class="opcion__d">{tienda.direccion}</span>
+            </label>
+          </div>
+
+          <div x-show="datos.entrega === 'delivery'" x-transition.opacity>
+            <label class="campo">
+              <span class="campo__etq">Dirección</span>
+              <input type="text" x-model="datos.direccion" autocomplete="street-address" placeholder="Calle, número y departamento" />
+              <span class="error" x-show="intento && errores.direccion" x-text="errores.direccion"></span>
+            </label>
+
+            <div class="par">
+              <label class="campo">
+                <span class="campo__etq">Distrito</span>
+                <select x-model="datos.distrito">
+                  <option value="">Elige tu distrito</option>
+                  {distritos.map((d) => <option value={d}>{d}</option>)}
+                </select>
+                <span class="error" x-show="intento && errores.distrito" x-text="errores.distrito"></span>
+              </label>
+
+              <label class="campo">
+                <span class="campo__etq">Referencia (opcional)</span>
+                <input type="text" x-model="datos.referencia" placeholder="Portón verde, frente al parque" />
+              </label>
+            </div>
+          </div>
+
+          <p class="apunte" x-show="datos.entrega === 'tienda'">
+            Te escribimos cuando esté listo para recoger. Horario: {tienda.horario}.
+          </p>
+        </fieldset>
+
+        <fieldset class="bloque-form">
+          <legend><span class="indice">03</span> Cómo vas a pagar</legend>
+
+          <div class="opciones opciones--tres">
+            <label class="opcion" :class="datos.pago === 'yape' && 'opcion--activa'">
+              <input type="radio" value="yape" x-model="datos.pago" />
+              <span class="opcion__t">Yape o Plin</span>
+              <span class="opcion__d">Te pasamos el número por el chat</span>
+            </label>
+            <label class="opcion" :class="datos.pago === 'transferencia' && 'opcion--activa'">
+              <input type="radio" value="transferencia" x-model="datos.pago" />
+              <span class="opcion__t">Transferencia</span>
+              <span class="opcion__d">BCP o Interbank</span>
+            </label>
+            <label class="opcion" :class="datos.pago === 'contraentrega' && 'opcion--activa'">
+              <input type="radio" value="contraentrega" x-model="datos.pago" />
+              <span class="opcion__t">Contra entrega</span>
+              <span class="opcion__d">Efectivo al recibir, solo Lima</span>
+            </label>
+          </div>
+
+          <label class="campo">
+            <span class="campo__etq">Nota para el pedido (opcional)</span>
+            <textarea x-model="datos.nota" rows="3" placeholder="Ej.: entregar después de las 5 p. m."></textarea>
+          </label>
+        </fieldset>
+      </div>
+
+      <aside class="resumen">
+        <h2 class="resumen__t">Tu pedido</h2>
+
+        <ul class="resumen__lista">
+          <template x-for="item in $store.carrito.items" :key="item.id">
+            <li>
+              <span class="resumen__nombre">
+                <span x-text="item.cantidad"></span> × <span x-text="item.nombre"></span>
+              </span>
+              <span x-text="$store.carrito.soles(item.precio * item.cantidad)"></span>
+            </li>
+          </template>
+        </ul>
+
+        <dl class="cuentas">
+          <div>
+            <dt>Subtotal</dt>
+            <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
+          </div>
+          <div>
+            <dt x-text="datos.entrega === 'tienda' ? 'Recojo en tienda' : 'Envío en Lima'"></dt>
+            <dd x-text="datos.entrega === 'tienda' ? 'S/ 0.00' : ($store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio))"></dd>
+          </div>
+          <div class="cuentas__total">
+            <dt>Total</dt>
+            <dd x-text="$store.carrito.soles(datos.entrega === 'tienda' ? $store.carrito.subtotal : $store.carrito.total)"></dd>
+          </div>
+        </dl>
+
+        <button type="submit" class="btn btn--bloque">Generar pedido y abrir WhatsApp</button>
+
+        <p class="error error--bloque" x-show="intento && !valido">
+          Revisa los campos marcados antes de continuar.
+        </p>
+
+        <p class="resumen__nota">
+          Al confirmar se abre WhatsApp con el detalle escrito. Ahí acordamos pago y horario de
+          entrega. El envío a provincia se cotiza por el chat.
+        </p>
+
+        <a href="/carrito" class="resumen__volver">← Volver al carrito</a>
+      </aside>
+    </form>
+  </div>
+</Base>
+
+<style>
+  .cab {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+  }
+
+  .cab__env {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-block: clamp(2.2rem, 4vw, 3.2rem);
+  }
+
+  .cab .kicker {
+    margin-bottom: 0.6rem;
+  }
+
+  .cab__nota {
+    max-width: 36ch;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin: 0;
+    text-align: right;
+  }
+
+  .checkout {
+    padding-block: 3rem 4rem;
+  }
+
+  .checkout__cuerpo {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  /* Formulario */
+  .bloque-form {
+    border: none;
+    border-top: 1px solid var(--linea-fuerte);
+    margin: 0 0 2.2rem;
+    padding: 1.4rem 0 0;
+  }
+
+  .bloque-form legend {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    padding: 0;
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin-bottom: 1.2rem;
+  }
+
+  .par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.2rem;
+  }
+
+  .error {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--henna);
+    margin-top: 0.3rem;
+  }
+
+  .error--bloque {
+    text-align: center;
+    margin-top: 0.7rem;
+  }
+
+  .opciones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-bottom: 1.3rem;
+  }
+
+  .opciones--tres {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .opcion {
+    display: block;
+    border: 1px solid var(--linea-fuerte);
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    background: #fff;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .opcion:hover {
+    border-color: var(--jade);
+  }
+
+  .opcion--activa {
+    border-color: var(--salvia);
+    background: var(--papel);
+    box-shadow: inset 3px 0 0 var(--salvia);
+  }
+
+  .opcion input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .opcion__t {
+    display: block;
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+
+  .opcion__d {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  .apunte {
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    border-left: 3px solid var(--jade);
+    padding-left: 0.9rem;
+    margin: 0;
+  }
+
+  /* Resumen */
+  .resumen {
+    position: sticky;
+    top: 120px;
+    background: var(--papel);
+    border: 1px solid var(--linea-fuerte);
+    padding: 1.5rem;
+  }
+
+  .resumen__t {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+  }
+
+  .resumen__lista {
+    list-style: none;
+    margin: 0 0 1.2rem;
+    padding: 0;
+    font-size: 0.88rem;
+  }
+
+  .resumen__lista li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+  }
+
+  .resumen__nombre {
+    color: var(--tinta-suave);
+  }
+
+  .cuentas {
+    margin: 0 0 1.2rem;
+  }
+
+  .cuentas div {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.92rem;
+    padding: 0.28rem 0;
+  }
+
+  .cuentas dt,
+  .cuentas dd {
+    margin: 0;
+  }
+
+  .cuentas__total {
+    border-top: 1px solid var(--linea-fuerte);
+    margin-top: 0.6rem;
+    padding-top: 0.7rem !important;
+    font-family: var(--serif);
+    font-size: 1.3rem !important;
+    font-weight: 600;
+  }
+
+  .resumen__nota {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin: 0.9rem 0 0;
+  }
+
+  .resumen__volver {
+    display: block;
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+
+  .resumen__volver:hover {
+    color: var(--salvia);
+  }
+
+  /* Confirmación */
+  .listo {
+    max-width: 620px;
+    margin-inline: auto;
+    text-align: center;
+    padding-block: 1rem 2rem;
+  }
+
+  .listo__numero {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--salvia);
+    margin: 0.6rem 0 1.2rem;
+    padding-block: 0.8rem;
+    border-top: 2px solid var(--salvia);
+    border-bottom: 2px solid var(--salvia);
+  }
+
+  .listo__t {
+    font-size: 1.6rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .listo__d {
+    color: var(--tinta-suave);
+    max-width: 46ch;
+    margin-inline: auto;
+  }
+
+  .listo__acciones {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin: 1.6rem 0 2.5rem;
+  }
+
+  .listo__detalle {
+    text-align: left;
+    background: var(--papel);
+    border: 1px solid var(--linea-fuerte);
+    padding: 1.4rem 1.5rem;
+  }
+
+  .listo__detalle h3 {
+    font-size: 0.72rem;
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--salvia);
+    margin-bottom: 0.8rem;
+  }
+
+  .listo__detalle ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.9rem;
+  }
+
+  .listo__detalle li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+  }
+
+  .listo__total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 0.9rem 0 0;
+    font-family: var(--serif);
+    font-size: 1.2rem;
+  }
+
+  .listo__nota {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin: 0.8rem 0 0;
+  }
+
+  /* Vacío */
+  .aviso-vacio {
+    text-align: center;
+    padding-block: 3rem 2rem;
+  }
+
+  .aviso-vacio__t {
+    font-family: var(--serif);
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .aviso-vacio p {
+    color: var(--tinta-suave);
+  }
+
+  @media (max-width: 900px) {
+    .checkout__cuerpo {
+      grid-template-columns: 1fr;
+    }
+    .resumen {
+      position: static;
+    }
+    .cab__env {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+    .cab__nota {
+      text-align: left;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .par,
+    .opciones,
+    .opciones--tres {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

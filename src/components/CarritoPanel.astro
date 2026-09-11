@@ -1,0 +1,330 @@
+---
+import { tienda } from '../data/tienda.js';
+---
+
+<!-- Panel lateral del carrito. Vive en el layout, así está disponible en
+     todas las páginas. -->
+<div x-data x-cloak>
+  <div class="velo" x-show="$store.carrito.abierto" x-transition.opacity @click="$store.carrito.abierto = false"></div>
+
+  <aside
+    class="panel"
+    x-show="$store.carrito.abierto"
+    x-transition:enter="panel--entra"
+    x-transition:enter-start="panel--fuera"
+    x-transition:leave-end="panel--fuera"
+    @keydown.escape.window="$store.carrito.abierto = false"
+    aria-label="Carrito de compras"
+  >
+    <header class="panel__cab">
+      <div>
+        <p class="kicker">Tu pedido</p>
+        <p class="panel__cuenta">
+          <span x-text="$store.carrito.unidades"></span>
+          <span x-text="$store.carrito.unidades === 1 ? 'producto' : 'productos'"></span>
+        </p>
+      </div>
+      <button class="panel__cerrar" @click="$store.carrito.abierto = false" aria-label="Cerrar carrito">✕</button>
+    </header>
+
+    <div class="panel__aviso" x-show="!$store.carrito.vacio && !$store.carrito.envioGratis">
+      Te faltan <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> para el envío gratis en Lima.
+    </div>
+    <div class="panel__aviso panel__aviso--ok" x-show="$store.carrito.envioGratis && !$store.carrito.vacio">
+      Tienes envío gratis en Lima.
+    </div>
+
+    <div class="panel__cuerpo">
+      <template x-if="$store.carrito.vacio">
+        <div class="panel__vacio">
+          <p class="panel__vacio-titulo">Tu carrito está vacío</p>
+          <p>Empieza por lo que más sale de la tienda.</p>
+          <a href="/catalogo" class="btn btn--linea">Ver catálogo</a>
+        </div>
+      </template>
+
+      <ul class="lineas">
+        <template x-for="item in $store.carrito.items" :key="item.id">
+          <li class="linea">
+            <div class="linea__datos">
+              <a class="linea__nombre" :href="'/producto/' + item.slug" x-text="item.nombre"></a>
+              <p class="linea__pres" x-text="item.presentacion"></p>
+              <div class="paso">
+                <button @click="$store.carrito.cambiarCantidad(item.id, -1)" aria-label="Quitar uno">−</button>
+                <span x-text="item.cantidad"></span>
+                <button
+                  @click="$store.carrito.cambiarCantidad(item.id, 1)"
+                  :disabled="item.cantidad >= item.stock"
+                  aria-label="Agregar uno"
+                >+</button>
+              </div>
+            </div>
+            <div class="linea__derecha">
+              <p class="precio" x-text="$store.carrito.soles(item.precio * item.cantidad)"></p>
+              <button class="linea__quitar" @click="$store.carrito.quitar(item.id)">Quitar</button>
+            </div>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    <footer class="panel__pie" x-show="!$store.carrito.vacio">
+      <dl class="cuentas">
+        <div>
+          <dt>Subtotal</dt>
+          <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
+        </div>
+        <div>
+          <dt>Envío (Lima)</dt>
+          <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio)"></dd>
+        </div>
+        <div class="cuentas__total">
+          <dt>Total</dt>
+          <dd x-text="$store.carrito.soles($store.carrito.total)"></dd>
+        </div>
+      </dl>
+      <a href="/checkout" class="btn btn--bloque">Finalizar pedido</a>
+      <a href="/carrito" class="panel__ver">Ver el carrito completo</a>
+      <p class="panel__nota">El pedido se confirma por WhatsApp al {tienda.whatsappVisible}. No se cobra en línea.</p>
+    </footer>
+  </aside>
+
+  <!-- Aviso flotante al agregar -->
+  <div class="brindis" x-show="$store.carrito.aviso" x-transition.opacity>
+    <span x-text="$store.carrito.aviso"></span>
+  </div>
+</div>
+
+<style>
+  .velo {
+    position: fixed;
+    inset: 0;
+    background: rgba(33, 66, 58, 0.35);
+    z-index: 80;
+  }
+
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(420px, 100%);
+    background: var(--fondo);
+    border-left: 1px solid var(--linea-fuerte);
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .panel--fuera {
+    transform: translateX(100%);
+  }
+
+  .panel--entra {
+    transform: translateX(0);
+  }
+
+  .panel__cab {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 1.4rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .panel__cuenta {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    margin: 0.3rem 0 0;
+  }
+
+  .panel__cerrar {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: var(--tinta-suave);
+    padding: 0.3rem;
+  }
+
+  .panel__aviso {
+    padding: 0.7rem 1.5rem;
+    background: var(--papel);
+    border-bottom: 1px solid var(--linea);
+    font-size: 0.84rem;
+  }
+
+  .panel__aviso--ok {
+    background: #e6ede8;
+    color: var(--salvia-osc);
+  }
+
+  .panel__cuerpo {
+    flex: 1;
+    overflow-y: auto;
+    padding-inline: 1.5rem;
+  }
+
+  .panel__vacio {
+    padding: 3rem 0;
+    text-align: center;
+    color: var(--tinta-suave);
+  }
+
+  .panel__vacio-titulo {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    color: var(--tinta);
+    margin-bottom: 0.4rem;
+  }
+
+  .lineas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .linea {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+  }
+
+  .linea__nombre {
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .linea__nombre:hover {
+    color: var(--salvia);
+  }
+
+  .linea__pres {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin: 0.2rem 0 0.6rem;
+  }
+
+  .paso {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--linea-fuerte);
+  }
+
+  .paso button {
+    background: none;
+    border: none;
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+    color: var(--salvia);
+  }
+
+  .paso button[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .paso span {
+    min-width: 30px;
+    text-align: center;
+    font-size: 0.9rem;
+    border-inline: 1px solid var(--linea-fuerte);
+    line-height: 30px;
+  }
+
+  .linea__derecha {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .linea__derecha .precio {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .linea__quitar {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 1px solid var(--linea-fuerte);
+  }
+
+  .linea__quitar:hover {
+    color: var(--henna);
+    border-color: var(--henna);
+  }
+
+  .panel__pie {
+    border-top: 1px solid var(--linea-fuerte);
+    padding: 1.2rem 1.5rem 1.5rem;
+    background: var(--papel);
+  }
+
+  .cuentas {
+    margin: 0 0 1rem;
+  }
+
+  .cuentas div {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    padding: 0.22rem 0;
+  }
+
+  .cuentas dt,
+  .cuentas dd {
+    margin: 0;
+  }
+
+  .cuentas__total {
+    border-top: 1px solid var(--linea-fuerte);
+    margin-top: 0.5rem;
+    padding-top: 0.6rem !important;
+    font-family: var(--serif);
+    font-size: 1.2rem !important;
+    font-weight: 600;
+  }
+
+  .panel__ver {
+    display: block;
+    text-align: center;
+    margin-top: 0.8rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    text-decoration: underline;
+  }
+
+  .panel__nota {
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+    margin: 0.9rem 0 0;
+    text-align: center;
+  }
+
+  .brindis {
+    position: fixed;
+    left: 50%;
+    bottom: 2rem;
+    transform: translateX(-50%);
+    z-index: 95;
+    background: var(--salvia);
+    color: #f2efe6;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    padding: 0.7rem 1.2rem;
+    max-width: 90vw;
+  }
+</style>

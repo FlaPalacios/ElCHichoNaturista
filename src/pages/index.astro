@@ -1,0 +1,447 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductoCard from '../components/ProductoCard.astro';
+import { activos, categorias, masVendidos, porCategoria } from '../data/productos.js';
+import { tienda, waLink } from '../data/tienda.js';
+
+// Portada de venta: banner, beneficios y productos. Nada más.
+const vendidos = masVendidos().slice(0, 8);
+const ofertas = activos().filter((p) => p.precioAntes);
+const henna = porCategoria('cosmetica-capilar').slice(0, 4);
+const despensa = porCategoria('superalimentos').slice(0, 4);
+const aceites = porCategoria('aceites').slice(0, 4);
+
+const beneficios = [
+  { t: 'Envíos a todo el Perú', d: 'Delivery el mismo día en Lima' },
+  { t: 'Envío gratis', d: `En Lima desde S/ ${tienda.envioGratisDesde}` },
+  { t: 'Pedido por WhatsApp', d: 'Sin pasarela de pago' },
+  { t: 'Origen anotado', d: 'Región y lote en cada envase' },
+];
+---
+
+<Base activo="inicio">
+  <!-- ── Banner ──────────────────────────────────────────────── -->
+  <section class="banner">
+    <picture class="banner__foto">
+      <source type="image/webp" media="(max-width: 700px)" srcset="/hero-760.webp" />
+      <source type="image/webp" media="(max-width: 1200px)" srcset="/hero-1200.webp" />
+      <source type="image/webp" srcset="/hero-1672.webp" />
+      <img
+        src="/hero.jpg"
+        alt="Mesa con productos naturales: tintes de henna, cápsulas, aceites esenciales y superalimentos"
+        width="1672"
+        height="941"
+        fetchpriority="high"
+      />
+    </picture>
+
+    <div class="banner__velo"></div>
+
+    <div class="env banner__env">
+      <div class="banner__texto">
+        <p class="banner__kicker">Tienda de productos naturales · Lima</p>
+        <h1 class="banner__titulo">Henna, suplementos,<br />aceites y superalimentos</h1>
+        <p class="banner__plomo">
+          {activos().length} productos con su origen anotado. Pides por aquí, lo cerramos por WhatsApp.
+        </p>
+        <div class="banner__acciones">
+          <a href="/catalogo" class="btn">Ver el catálogo</a>
+          <a
+            href={waLink('Hola, quiero hacer un pedido.')}
+            target="_blank"
+            rel="noopener"
+            class="btn btn--wa">Pedir por WhatsApp</a
+          >
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Beneficios ──────────────────────────────────────────── -->
+  <section class="beneficios">
+    <div class="env beneficios__env">
+      {
+        beneficios.map((b) => (
+          <div class="beneficio">
+            <p class="beneficio__t">{b.t}</p>
+            <p class="beneficio__d">{b.d}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ── Departamentos ───────────────────────────────────────── -->
+  <nav class="env deptos" aria-label="Departamentos">
+    {
+      categorias.map((c, i) => (
+        <a href={`/catalogo?categoria=${c.slug}`} class="depto">
+          <span class="indice">{String(i + 1).padStart(2, '0')}</span>
+          <span class="depto__nombre">{c.nombre}</span>
+          <span class="depto__n">{porCategoria(c.slug).length} productos</span>
+        </a>
+      ))
+    }
+  </nav>
+
+  <!-- ── Más vendidos ────────────────────────────────────────── -->
+  <section class="seccion">
+    <div class="env">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="kicker">El estante que más se vacía</p>
+          <h2 class="titulo">Los más vendidos</h2>
+        </div>
+        <span class="cabecera-seccion__linea"></span>
+        <a href="/catalogo?orden=vendidos" class="enlace-mas">Ver todos</a>
+      </div>
+
+      <div class="rejilla">
+        {vendidos.map((p) => <ProductoCard producto={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Ofertas ─────────────────────────────────────────────── -->
+  <section class="seccion seccion--papel">
+    <div class="env">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="kicker">Precio rebajado esta semana</p>
+          <h2 class="titulo">En oferta</h2>
+        </div>
+        <span class="cabecera-seccion__linea"></span>
+        <a href="/catalogo" class="enlace-mas">Ver catálogo</a>
+      </div>
+
+      <div class="rejilla">
+        {ofertas.map((p) => <ProductoCard producto={p} />)}
+        <a href="/catalogo" class="celda-cta">
+          <span class="celda-cta__k">¿Buscas otra cosa?</span>
+          <span class="celda-cta__t">Los {activos().length} productos, con filtros por precio y departamento</span>
+          <span class="enlace-mas">Ir al catálogo</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Henna Colors ────────────────────────────────────────── -->
+  <section class="seccion">
+    <div class="env">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="kicker">Línea propia · sin amoniaco ni PPD</p>
+          <h2 class="titulo">Henna Colors</h2>
+        </div>
+        <span class="cabecera-seccion__linea"></span>
+        <a href="/catalogo?categoria=cosmetica-capilar" class="enlace-mas">Ver la línea</a>
+      </div>
+
+      <div class="rejilla">
+        {henna.map((p) => <ProductoCard producto={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Aceites ─────────────────────────────────────────────── -->
+  <section class="seccion seccion--papel">
+    <div class="env">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="kicker">Destilados y prensados en frío</p>
+          <h2 class="titulo">Aceites esenciales</h2>
+        </div>
+        <span class="cabecera-seccion__linea"></span>
+        <a href="/catalogo?categoria=aceites" class="enlace-mas">Ver todos</a>
+      </div>
+
+      <div class="rejilla">
+        {aceites.map((p) => <ProductoCard producto={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Superalimentos ──────────────────────────────────────── -->
+  <section class="seccion">
+    <div class="env">
+      <div class="cabecera-seccion">
+        <div>
+          <p class="kicker">Cacao, harinas andinas y endulzantes</p>
+          <h2 class="titulo">Superalimentos</h2>
+        </div>
+        <span class="cabecera-seccion__linea"></span>
+        <a href="/catalogo?categoria=superalimentos" class="enlace-mas">Ver todos</a>
+      </div>
+
+      <div class="rejilla">
+        {despensa.map((p) => <ProductoCard producto={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Cierre ──────────────────────────────────────────────── -->
+  <section class="cierre">
+    <div class="env cierre__env">
+      <div>
+        <h2 class="titulo">¿No sabes cuál te conviene?</h2>
+        <p>Escríbenos y te recomendamos según lo que buscas. Atendemos {tienda.horario.toLowerCase()}.</p>
+      </div>
+      <a
+        href={waLink('Hola, quiero una recomendación de productos.')}
+        target="_blank"
+        rel="noopener"
+        class="btn btn--claro">Escribir por WhatsApp</a
+      >
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* Banner */
+  .banner {
+    position: relative;
+    min-height: clamp(420px, 58vw, 620px);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .banner__foto,
+  .banner__foto img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 55%;
+  }
+
+  .banner__velo {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to right, rgba(247, 245, 238, 0.94) 0%, rgba(247, 245, 238, 0.78) 34%, rgba(247, 245, 238, 0) 62%);
+  }
+
+  .banner__env {
+    position: relative;
+    width: 100%;
+    padding-block: clamp(2.5rem, 5vw, 4rem);
+  }
+
+  .banner__texto {
+    max-width: 34rem;
+  }
+
+  .banner__kicker {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--salvia);
+    margin: 0 0 1rem;
+  }
+
+  .banner__titulo {
+    font-family: var(--serif);
+    font-size: clamp(2.1rem, 4.4vw, 3.5rem);
+    font-variation-settings: 'SOFT' 40, 'WONK' 1;
+    color: var(--salvia-osc);
+    margin-bottom: 1rem;
+  }
+
+  .banner__plomo {
+    font-size: 1.06rem;
+    color: var(--tinta);
+    max-width: 36ch;
+    margin-bottom: 1.8rem;
+  }
+
+  .banner__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+
+  /* Beneficios */
+  .beneficios {
+    background: var(--salvia);
+    color: #e7eee9;
+  }
+
+  .beneficios__env {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .beneficio {
+    padding: 1.1rem 1.3rem;
+    text-align: center;
+    border-left: 1px solid rgba(231, 238, 233, 0.22);
+  }
+
+  .beneficio:first-child {
+    border-left: none;
+  }
+
+  .beneficio__t {
+    font-family: var(--serif);
+    font-size: 1.02rem;
+    font-weight: 600;
+    margin: 0 0 0.15rem;
+  }
+
+  .beneficio__d {
+    font-size: 0.8rem;
+    color: var(--jade-claro);
+    margin: 0;
+  }
+
+  /* Departamentos */
+  .deptos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    padding-block: 2.2rem 0.5rem;
+  }
+
+  .depto {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-top: 2px solid var(--salvia);
+    padding-top: 0.8rem;
+    transition: padding-left 0.2s;
+  }
+
+  .depto:hover {
+    padding-left: 0.4rem;
+  }
+
+  .depto__nombre {
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .depto:hover .depto__nombre {
+    color: var(--salvia);
+  }
+
+  .depto__n {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  /* Rejilla de productos */
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2.4rem 1.8rem;
+  }
+
+  .celda-cta {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.6rem;
+    border: 1px solid var(--linea-fuerte);
+    padding: 1.6rem;
+    background: transparent;
+    transition: border-color 0.2s;
+  }
+
+  .celda-cta:hover {
+    border-color: var(--salvia);
+  }
+
+  .celda-cta__k {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--jade);
+  }
+
+  .celda-cta__t {
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    line-height: 1.25;
+  }
+
+  /* Cierre */
+  .cierre {
+    background: var(--salvia);
+    color: #e7eee9;
+    padding-block: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .cierre__env {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .cierre p {
+    margin: 0.5rem 0 0;
+    color: #cfdcd5;
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .rejilla {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .banner__velo {
+      background: linear-gradient(
+        to bottom,
+        rgba(247, 245, 238, 0.95) 0%,
+        rgba(247, 245, 238, 0.86) 45%,
+        rgba(247, 245, 238, 0.35) 100%
+      );
+    }
+    .banner__texto {
+      max-width: none;
+      text-align: center;
+    }
+    .banner__plomo {
+      margin-inline: auto;
+    }
+    .banner__acciones {
+      justify-content: center;
+    }
+    .beneficios__env,
+    .deptos {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .beneficio:nth-child(odd) {
+      border-left: none;
+    }
+    .beneficio:nth-child(n + 3) {
+      border-top: 1px solid rgba(231, 238, 233, 0.22);
+    }
+    .rejilla {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem 1.4rem;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .banner {
+      min-height: 460px;
+    }
+    .rejilla {
+      grid-template-columns: 1fr;
+    }
+    .cierre__env {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

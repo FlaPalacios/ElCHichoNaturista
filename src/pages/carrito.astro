@@ -1,0 +1,432 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductoCard from '../components/ProductoCard.astro';
+import { masVendidos } from '../data/productos.js';
+import { tienda } from '../data/tienda.js';
+
+const sugerencias = masVendidos().slice(0, 3);
+---
+
+<Base title="Carrito" description="Revisa tu pedido antes de confirmarlo por WhatsApp." activo="carrito">
+  <header class="cab">
+    <div class="env cab__env">
+      <div>
+        <p class="kicker">Paso 1 de 2</p>
+        <h1 class="titulo">Tu carrito</h1>
+      </div>
+      <p class="cab__nota">Revisa cantidades. En el siguiente paso generamos tu número de pedido.</p>
+    </div>
+  </header>
+
+  <div class="env carrito" x-data x-cloak>
+    <!-- Vacío -->
+    <section class="vacio" x-show="$store.carrito.vacio">
+      <p class="vacio__t">Todavía no agregaste nada</p>
+      <p class="vacio__d">Estos son los que más salen esta semana.</p>
+      <a href="/catalogo" class="btn">Ir al catálogo</a>
+      <div class="vacio__sugeridos">
+        {sugerencias.map((p, i) => <ProductoCard producto={p} indice={i + 1} />)}
+      </div>
+    </section>
+
+    <!-- Con productos -->
+    <div class="carrito__cuerpo" x-show="!$store.carrito.vacio">
+      <section class="tabla" aria-label="Productos en el carrito">
+        <div class="tabla__cab">
+          <span>Producto</span>
+          <span>Cantidad</span>
+          <span>Total</span>
+        </div>
+
+        <template x-for="item in $store.carrito.items" :key="item.id">
+          <article class="fila">
+            <div class="fila__prod">
+              <div class="fila__texto">
+                <a class="fila__nombre" :href="'/producto/' + item.slug" x-text="item.nombre"></a>
+                <p class="fila__pres">
+                  <span x-text="item.presentacion"></span> ·
+                  <span x-text="$store.carrito.soles(item.precio)"></span> c/u
+                </p>
+                <button class="fila__quitar" @click="$store.carrito.quitar(item.id)">Quitar</button>
+              </div>
+            </div>
+
+            <div class="fila__cant">
+              <div class="paso">
+                <button @click="$store.carrito.cambiarCantidad(item.id, -1)" aria-label="Quitar uno">−</button>
+                <input
+                  type="number"
+                  min="1"
+                  :max="item.stock"
+                  :value="item.cantidad"
+                  @change="$store.carrito.fijarCantidad(item.id, $event.target.value)"
+                  aria-label="Cantidad"
+                />
+                <button
+                  @click="$store.carrito.cambiarCantidad(item.id, 1)"
+                  :disabled="item.cantidad >= item.stock"
+                  aria-label="Agregar uno"
+                >+</button>
+              </div>
+              <p class="fila__tope" x-show="item.cantidad >= item.stock">Máximo disponible</p>
+            </div>
+
+            <p class="precio fila__total" x-text="$store.carrito.soles(item.precio * item.cantidad)"></p>
+          </article>
+        </template>
+
+        <div class="tabla__pie">
+          <a href="/catalogo" class="enlace-mas">Seguir comprando</a>
+          <button class="tabla__vaciar" @click="$store.carrito.vaciar()">Vaciar carrito</button>
+        </div>
+      </section>
+
+      <aside class="resumen">
+        <h2 class="resumen__t">Resumen</h2>
+
+        <dl class="cuentas">
+          <div>
+            <dt>Subtotal</dt>
+            <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
+          </div>
+          <div>
+            <dt>Envío en Lima</dt>
+            <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio)"></dd>
+          </div>
+          <div class="cuentas__total">
+            <dt>Total</dt>
+            <dd x-text="$store.carrito.soles($store.carrito.total)"></dd>
+          </div>
+        </dl>
+
+        <div class="barra-envio" x-show="!$store.carrito.envioGratis">
+          <div class="barra-envio__riel">
+            <div
+              class="barra-envio__lleno"
+              :style={`'width:' + Math.min(100, ($store.carrito.subtotal / ${tienda.envioGratisDesde}) * 100) + '%'`}
+            ></div>
+          </div>
+          <p>
+            Agrega <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> y el envío en Lima va gratis.
+          </p>
+        </div>
+
+        <a href="/checkout" class="btn btn--bloque">Continuar al pedido</a>
+        <p class="resumen__nota">
+          Sin pago en línea: al confirmar te damos un número de pedido y abrimos WhatsApp con el
+          detalle listo para enviar al {tienda.whatsappVisible}.
+        </p>
+      </aside>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .cab {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+  }
+
+  .cab__env {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-block: clamp(2.2rem, 4vw, 3.2rem);
+  }
+
+  .cab .kicker {
+    margin-bottom: 0.6rem;
+  }
+
+  .cab__nota {
+    max-width: 34ch;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin: 0;
+    text-align: right;
+  }
+
+  .carrito {
+    padding-block: 3rem 4rem;
+  }
+
+  .carrito__cuerpo {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  /* Tabla */
+  .tabla__cab {
+    display: grid;
+    grid-template-columns: 1fr 150px 110px;
+    gap: 1.5rem;
+    border-bottom: 2px solid var(--salvia);
+    padding-bottom: 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+
+  .tabla__cab span:nth-child(2) {
+    text-align: center;
+  }
+
+  .tabla__cab span:last-child {
+    text-align: right;
+  }
+
+  .fila {
+    display: grid;
+    grid-template-columns: 1fr 150px 110px;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1.3rem 0;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .fila__nombre {
+    font-family: var(--serif);
+    font-size: 1.14rem;
+    font-weight: 600;
+  }
+
+  .fila__nombre:hover {
+    color: var(--salvia);
+  }
+
+  .fila__pres {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .fila__quitar {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 1px solid var(--linea-fuerte);
+  }
+
+  .fila__quitar:hover {
+    color: var(--henna);
+    border-color: var(--henna);
+  }
+
+  .fila__cant {
+    justify-self: center;
+    text-align: center;
+  }
+
+  .paso {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--linea-fuerte);
+  }
+
+  .paso button {
+    background: none;
+    border: none;
+    width: 34px;
+    height: 36px;
+    font-size: 1rem;
+    color: var(--salvia);
+  }
+
+  .paso button[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .paso input {
+    width: 46px;
+    height: 36px;
+    text-align: center;
+    font: inherit;
+    font-size: 0.92rem;
+    border: none;
+    border-inline: 1px solid var(--linea-fuerte);
+    background: #fff;
+    -moz-appearance: textfield;
+  }
+
+  .paso input::-webkit-outer-spin-button,
+  .paso input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .fila__tope {
+    font-size: 0.7rem;
+    color: var(--henna);
+    margin: 0.4rem 0 0;
+  }
+
+  .fila__total {
+    text-align: right;
+    margin: 0;
+  }
+
+  .tabla__pie {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1.2rem;
+  }
+
+  .tabla__vaciar {
+    background: none;
+    border: none;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 1px solid var(--linea-fuerte);
+    padding-bottom: 2px;
+  }
+
+  .tabla__vaciar:hover {
+    color: var(--henna);
+    border-color: var(--henna);
+  }
+
+  /* Resumen */
+  .resumen {
+    position: sticky;
+    top: 120px;
+    background: var(--papel);
+    border: 1px solid var(--linea-fuerte);
+    padding: 1.5rem;
+  }
+
+  .resumen__t {
+    font-size: 1.3rem;
+    margin-bottom: 1.1rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+  }
+
+  .cuentas {
+    margin: 0 0 1.2rem;
+  }
+
+  .cuentas div {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.92rem;
+    padding: 0.28rem 0;
+  }
+
+  .cuentas dt,
+  .cuentas dd {
+    margin: 0;
+  }
+
+  .cuentas__total {
+    border-top: 1px solid var(--linea-fuerte);
+    margin-top: 0.6rem;
+    padding-top: 0.7rem !important;
+    font-family: var(--serif);
+    font-size: 1.3rem !important;
+    font-weight: 600;
+  }
+
+  .barra-envio {
+    margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+  }
+
+  .barra-envio__riel {
+    height: 3px;
+    background: var(--linea-fuerte);
+    margin-bottom: 0.5rem;
+  }
+
+  .barra-envio__lleno {
+    height: 3px;
+    background: var(--jade);
+    transition: width 0.4s;
+  }
+
+  .barra-envio p {
+    margin: 0;
+  }
+
+  .resumen__nota {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin: 0.9rem 0 0;
+  }
+
+  /* Vacío */
+  .vacio {
+    text-align: center;
+    padding-block: 2rem 1rem;
+  }
+
+  .vacio__t {
+    font-family: var(--serif);
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .vacio__d {
+    color: var(--tinta-suave);
+    margin-bottom: 1.4rem;
+  }
+
+  .vacio__sugeridos {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 3.5rem;
+    text-align: left;
+  }
+
+  @media (max-width: 900px) {
+    .carrito__cuerpo {
+      grid-template-columns: 1fr;
+    }
+    .resumen {
+      position: static;
+    }
+    .cab__env {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+    .cab__nota {
+      text-align: left;
+    }
+    .vacio__sugeridos {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .tabla__cab {
+      display: none;
+    }
+    .fila {
+      grid-template-columns: 1fr auto;
+      row-gap: 0.9rem;
+    }
+    .fila__cant {
+      justify-self: start;
+    }
+    .fila__total {
+      grid-column: 2;
+      grid-row: 2;
+    }
+  }
+</style>

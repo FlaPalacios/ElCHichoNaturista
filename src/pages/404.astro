@@ -1,0 +1,59 @@
+---
+import Base from '../layouts/Base.astro';
+import { categorias } from '../data/productos.js';
+---
+
+<Base title="Página no encontrada">
+  <section class="env perdido">
+    <p class="kicker">Error 404</p>
+    <h1 class="display">Esta página<br />no existe</h1>
+    <p class="plomo">
+      Quizá el enlace cambió o el producto ya no está en el catálogo. Prueba por acá:
+    </p>
+
+    <ul class="perdido__rutas">
+      <li><a href="/">Inicio</a></li>
+      <li><a href="/catalogo">Catálogo completo</a></li>
+      {categorias.map((c) => <li><a href={`/catalogo?categoria=${c.slug}`}>{c.nombre}</a></li>)}
+    </ul>
+  </section>
+</Base>
+
+<style>
+  .perdido {
+    padding-block: clamp(3rem, 8vw, 6rem) 5rem;
+    max-width: 700px;
+  }
+
+  .perdido .kicker {
+    margin-bottom: 1rem;
+  }
+
+  .perdido .display {
+    margin-bottom: 1.2rem;
+  }
+
+  .perdido__rutas {
+    list-style: none;
+    margin: 2rem 0 0;
+    padding: 0;
+    border-top: 1px solid var(--linea-fuerte);
+  }
+
+  .perdido__rutas li {
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .perdido__rutas a {
+    display: block;
+    padding: 0.85rem 0;
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    transition: padding-left 0.2s, color 0.2s;
+  }
+
+  .perdido__rutas a:hover {
+    padding-left: 0.6rem;
+    color: var(--salvia);
+  }
+</style>

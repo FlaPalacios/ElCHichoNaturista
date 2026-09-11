@@ -1,0 +1,300 @@
+---
+import Base from '../layouts/Base.astro';
+import { tienda, waLink } from '../data/tienda.js';
+---
+
+<Base title="Mi cuenta" description="Ingresa o crea tu cuenta para guardar tus datos y ver tus pedidos." activo="cuenta">
+  <header class="cab">
+    <div class="env cab__env">
+      <div>
+        <p class="kicker">Opcional</p>
+        <h1 class="titulo">Tu cuenta</h1>
+      </div>
+      <p class="cab__nota">
+        No hace falta cuenta para comprar. Sirve para guardar tus datos y revisar pedidos anteriores.
+      </p>
+    </div>
+  </header>
+
+  <div class="env cuenta" x-data="{ vista: 'ingresar' }">
+    <section class="acceso">
+      <div class="pestanas" role="tablist">
+        <button
+          role="tab"
+          :aria-selected="vista === 'ingresar'"
+          :class="vista === 'ingresar' && 'es-activa'"
+          @click="vista = 'ingresar'"
+        >Ingresar</button>
+        <button
+          role="tab"
+          :aria-selected="vista === 'crear'"
+          :class="vista === 'crear' && 'es-activa'"
+          @click="vista = 'crear'"
+        >Crear cuenta</button>
+      </div>
+
+      <form class="acceso__form" x-show="vista === 'ingresar'" @submit.prevent="">
+        <label class="campo">
+          <span class="campo__etq">Correo</span>
+          <input type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
+        </label>
+        <label class="campo">
+          <span class="campo__etq">Contraseña</span>
+          <input type="password" autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <button class="btn btn--bloque" type="submit">Ingresar</button>
+        <p class="acceso__aviso">
+          El acceso con cuenta se activa cuando conectemos el backend. Por ahora el pedido se
+          confirma por WhatsApp sin registrarse.
+        </p>
+      </form>
+
+      <form class="acceso__form" x-show="vista === 'crear'" x-cloak @submit.prevent="">
+        <label class="campo">
+          <span class="campo__etq">Nombre completo</span>
+          <input type="text" autocomplete="name" placeholder="Nombre y apellido" />
+        </label>
+        <div class="par">
+          <label class="campo">
+            <span class="campo__etq">Correo</span>
+            <input type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
+          </label>
+          <label class="campo">
+            <span class="campo__etq">WhatsApp</span>
+            <input type="tel" autocomplete="tel" placeholder="9XX XXX XXX" />
+          </label>
+        </div>
+        <label class="campo">
+          <span class="campo__etq">Contraseña</span>
+          <input type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
+        </label>
+        <button class="btn btn--bloque" type="submit">Crear cuenta</button>
+        <p class="acceso__aviso">
+          Guardaremos solo lo necesario para despachar tus pedidos: nombre, contacto y dirección.
+        </p>
+      </form>
+    </section>
+
+    <aside class="lateral" x-cloak>
+      <section class="ultimo" x-show="$store.pedido.ultimo">
+        <p class="kicker">Tu último pedido</p>
+        <p class="ultimo__numero" x-text="$store.pedido.ultimo?.numero"></p>
+        <p class="ultimo__fecha">
+          <span x-text="$store.pedido.ultimo ? new Date($store.pedido.ultimo.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : ''"></span>
+          · <span class="ultimo__estado" x-text="$store.pedido.ultimo?.estado"></span>
+        </p>
+
+        <ul class="ultimo__items">
+          <template x-for="i in $store.pedido.ultimo?.items || []" :key="i.producto_id">
+            <li>
+              <span x-text="i.cantidad + ' × ' + i.nombre"></span>
+              <span x-text="$store.carrito.soles(i.precio_unitario * i.cantidad)"></span>
+            </li>
+          </template>
+        </ul>
+
+        <p class="ultimo__total">
+          <span>Total</span>
+          <strong x-text="$store.carrito.soles($store.pedido.ultimo?.total || 0)"></strong>
+        </p>
+
+        <a
+          :href="$store.pedido.ultimo ? $store.pedido.mensajeWhatsApp($store.pedido.ultimo) : '#'"
+          target="_blank"
+          rel="noopener"
+          class="btn btn--wa btn--bloque"
+        >Consultar este pedido</a>
+      </section>
+
+      <section class="ultimo ultimo--vacio" x-show="!$store.pedido.ultimo">
+        <p class="kicker">Historial</p>
+        <p class="ultimo__nada">
+          Todavía no hay pedidos en este navegador. Cuando confirmes uno, aparecerá acá con su
+          número para hacerle seguimiento.
+        </p>
+        <a href="/catalogo" class="btn btn--linea btn--bloque">Ver catálogo</a>
+      </section>
+
+      <section class="ayuda">
+        <p class="kicker">¿Prefieres no registrarte?</p>
+        <p>
+          Escríbenos y armamos el pedido contigo por el chat. Atendemos {tienda.horario.toLowerCase()}.
+        </p>
+        <a href={waLink('Hola, quiero hacer un pedido por el chat.')} target="_blank" rel="noopener" class="enlace-mas">
+          Escribir al {tienda.whatsappVisible}
+        </a>
+      </section>
+    </aside>
+  </div>
+</Base>
+
+<style>
+  .cab {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+  }
+
+  .cab__env {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-block: clamp(2.2rem, 4vw, 3.2rem);
+  }
+
+  .cab .kicker {
+    margin-bottom: 0.6rem;
+  }
+
+  .cab__nota {
+    max-width: 36ch;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin: 0;
+    text-align: right;
+  }
+
+  .cuenta {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 3rem;
+    padding-block: 3rem 4rem;
+    align-items: start;
+  }
+
+  .acceso {
+    max-width: 520px;
+  }
+
+  .pestanas {
+    display: flex;
+    gap: 2rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+    margin-bottom: 1.8rem;
+  }
+
+  .pestanas button {
+    background: none;
+    border: none;
+    padding: 0 0 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .pestanas button.es-activa {
+    color: var(--salvia);
+    border-color: var(--salvia);
+  }
+
+  .par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.2rem;
+  }
+
+  .acceso__aviso {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    border-left: 3px solid var(--jade);
+    padding-left: 0.9rem;
+    margin: 1.2rem 0 0;
+  }
+
+  .lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .ultimo {
+    background: var(--papel);
+    border: 1px solid var(--linea-fuerte);
+    padding: 1.4rem 1.5rem;
+  }
+
+  .ultimo__numero {
+    font-family: var(--serif);
+    font-size: 1.55rem;
+    font-weight: 600;
+    color: var(--salvia);
+    margin: 0.5rem 0 0.2rem;
+  }
+
+  .ultimo__fecha {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    margin-bottom: 1rem;
+  }
+
+  .ultimo__estado {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.7rem;
+    color: var(--henna);
+  }
+
+  .ultimo__items {
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+    font-size: 0.86rem;
+  }
+
+  .ultimo__items li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+  }
+
+  .ultimo__total {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .ultimo__nada {
+    font-size: 0.9rem;
+    color: var(--tinta-suave);
+    margin-block: 0.8rem 1.2rem;
+  }
+
+  .ayuda {
+    border-top: 2px solid var(--salvia);
+    padding-top: 1.2rem;
+  }
+
+  .ayuda p {
+    font-size: 0.9rem;
+    color: var(--tinta-suave);
+    margin-block: 0.8rem;
+  }
+
+  @media (max-width: 900px) {
+    .cuenta {
+      grid-template-columns: 1fr;
+    }
+    .cab__env {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+    .cab__nota {
+      text-align: left;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .par {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

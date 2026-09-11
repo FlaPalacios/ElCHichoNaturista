@@ -1,0 +1,428 @@
+---
+import Base from '../../layouts/Base.astro';
+import { activos, categorias, categoriaPorSlug, productos } from '../../data/productos.js';
+
+// Maqueta del panel. Sin backend todavía: los números salen de los datos de
+// prueba y el acceso no valida nada (eso llega con JWT en la etapa 3).
+const lista = [...productos].sort((a, b) => a.stock - b.stock);
+const valorInventario = productos.reduce((n, p) => n + p.precio * p.stock, 0);
+const stockBajo = productos.filter((p) => p.stock <= 12);
+
+const pedidosEjemplo = [
+  { numero: 'ECN-260908-4471', cliente: 'Rosa Quispe', items: 3, total: 118.8, estado: 'entregado' },
+  { numero: 'ECN-260909-8123', cliente: 'Luis Paredes', items: 1, total: 45.0, estado: 'en camino' },
+  { numero: 'ECN-260910-2094', cliente: 'Ana Torres', items: 5, total: 203.4, estado: 'pendiente' },
+];
+---
+
+<Base title="Panel de administración" description="Panel interno de El Chico Naturista.">
+  <div class="env admin" x-data="{ dentro: false, filtro: '' }">
+    <!-- Acceso (maqueta) -->
+    <section class="acceso" x-show="!dentro">
+      <p class="kicker">Área interna</p>
+      <h1 class="titulo">Panel de administración</h1>
+      <p class="acceso__d">Área restringida a la administración de la tienda.</p>
+
+      <form class="acceso__form" @submit.prevent="dentro = true">
+        <label class="campo">
+          <span class="campo__etq">Usuario</span>
+          <input type="text" autocomplete="username" placeholder="usuario" />
+        </label>
+        <label class="campo">
+          <span class="campo__etq">Contraseña</span>
+          <input type="password" autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <button class="btn btn--bloque" type="submit">Entrar</button>
+      </form>
+
+      <p class="maqueta">
+        <strong>Maqueta de la etapa 1.</strong> Este formulario todavía no valida nada: la
+        autenticación con JWT y los datos reales llegan en las etapas 3 y 6.
+      </p>
+    </section>
+
+    <!-- Tablero -->
+    <section x-show="dentro" x-cloak>
+      <header class="admin__cab">
+        <div>
+          <p class="kicker">Sesión de administración</p>
+          <h1 class="titulo">Tablero</h1>
+        </div>
+        <button class="salir" @click="dentro = false">Cerrar sesión</button>
+      </header>
+
+      <p class="maqueta maqueta--barra">
+        Datos de prueba. Cuando exista la API, estas cifras salen de la base de datos.
+      </p>
+
+      <div class="metricas">
+        <article class="metrica">
+          <p class="metrica__n">{activos().length}</p>
+          <p class="metrica__e">Productos activos</p>
+          <p class="metrica__d">de {productos.length} en el catálogo</p>
+        </article>
+        <article class="metrica">
+          <p class="metrica__n">{categorias.length}</p>
+          <p class="metrica__e">Categorías</p>
+          <p class="metrica__d">Cosmética, suplementos, aceites, alimentos</p>
+        </article>
+        <article class="metrica">
+          <p class="metrica__n">{stockBajo.length}</p>
+          <p class="metrica__e">Con stock bajo</p>
+          <p class="metrica__d">12 unidades o menos</p>
+        </article>
+        <article class="metrica">
+          <p class="metrica__n">S/ {valorInventario.toFixed(0)}</p>
+          <p class="metrica__e">Valor del inventario</p>
+          <p class="metrica__d">Precio de venta × stock</p>
+        </article>
+      </div>
+
+      <!-- Pedidos -->
+      <section class="panel">
+        <div class="cabecera-seccion">
+          <div>
+            <p class="kicker">Últimos movimientos</p>
+            <h2 class="subtitulo">Pedidos</h2>
+          </div>
+          <span class="cabecera-seccion__linea"></span>
+        </div>
+
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Cliente</th>
+              <th>Ítems</th>
+              <th>Total</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="$store.pedido.ultimo">
+              <tr class="tabla__nuevo">
+                <td x-text="$store.pedido.ultimo?.numero"></td>
+                <td x-text="$store.pedido.ultimo?.cliente?.nombre || 'Tu pedido de prueba'"></td>
+                <td x-text="$store.pedido.ultimo?.items?.length"></td>
+                <td x-text="$store.carrito.soles($store.pedido.ultimo?.total || 0)"></td>
+                <td><span class="estado estado--pendiente">pendiente</span></td>
+              </tr>
+            </template>
+            {
+              pedidosEjemplo.map((p) => (
+                <tr>
+                  <td>{p.numero}</td>
+                  <td>{p.cliente}</td>
+                  <td>{p.items}</td>
+                  <td>S/ {p.total.toFixed(2)}</td>
+                  <td>
+                    <span class={`estado estado--${p.estado.replace(' ', '-')}`}>{p.estado}</span>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Inventario -->
+      <section class="panel">
+        <div class="cabecera-seccion">
+          <div>
+            <p class="kicker">Ordenado por stock</p>
+            <h2 class="subtitulo">Inventario</h2>
+          </div>
+          <span class="cabecera-seccion__linea"></span>
+          <label class="buscar-admin">
+            <span class="solo-lector">Buscar producto</span>
+            <input type="search" x-model="filtro" placeholder="Filtrar productos…" />
+          </label>
+        </div>
+
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              lista.map((p) => (
+                <tr
+                  x-show={`'${p.nombre.toLowerCase().replace(/'/g, '')}'.includes(filtro.toLowerCase())`}
+                >
+                  <td>
+                    <a href={`/producto/${p.slug}`}>{p.nombre}</a>
+                    <span class="tabla__sub">{p.presentacion}</span>
+                  </td>
+                  <td>{categoriaPorSlug(p.categoria)?.nombre}</td>
+                  <td>S/ {p.precio.toFixed(2)}</td>
+                  <td>
+                    <span class={p.stock <= 12 ? 'stock stock--bajo' : 'stock'}>{p.stock}</span>
+                  </td>
+                  <td>
+                    <span class={`estado ${p.activo ? 'estado--activo' : 'estado--inactivo'}`}>
+                      {p.activo ? 'activo' : 'inactivo'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <section class="pendiente">
+        <p class="kicker">Lo que falta en este panel</p>
+        <ul>
+          <li>Crear, editar y desactivar productos (etapa 6)</li>
+          <li>Cambiar el estado de un pedido y avisar al cliente</li>
+          <li>Subir fotos reales de producto</li>
+          <li>Login con JWT y sesión persistente</li>
+        </ul>
+      </section>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .admin {
+    padding-block: 3rem 4rem;
+  }
+
+  /* Acceso */
+  .acceso {
+    max-width: 420px;
+    margin-inline: auto;
+    padding-block: 2rem;
+  }
+
+  .acceso .kicker {
+    margin-bottom: 0.6rem;
+  }
+
+  .acceso__d {
+    color: var(--tinta-suave);
+    margin-block: 0.6rem 1.8rem;
+  }
+
+  .acceso__form {
+    border-top: 2px solid var(--salvia);
+    padding-top: 1.4rem;
+  }
+
+  .maqueta {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    background: var(--papel);
+    border-left: 3px solid var(--henna);
+    padding: 0.9rem 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .maqueta--barra {
+    margin-block: 0 2rem;
+  }
+
+  /* Tablero */
+  .admin__cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+    padding-bottom: 1.2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .admin__cab .kicker {
+    margin-bottom: 0.5rem;
+  }
+
+  .salir {
+    background: none;
+    border: 1px solid var(--linea-fuerte);
+    padding: 0.5rem 0.9rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+
+  .salir:hover {
+    border-color: var(--henna);
+    color: var(--henna);
+  }
+
+  .metricas {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .metrica {
+    border-top: 2px solid var(--salvia);
+    padding-top: 1rem;
+  }
+
+  .metrica__n {
+    font-family: var(--serif);
+    font-size: 2.3rem;
+    font-weight: 600;
+    line-height: 1;
+    margin: 0 0 0.5rem;
+    color: var(--salvia);
+  }
+
+  .metrica__e {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 0.3rem;
+  }
+
+  .metrica__d {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    margin: 0;
+  }
+
+  .panel {
+    margin-bottom: 3rem;
+  }
+
+  .panel .cabecera-seccion {
+    margin-bottom: 1.2rem;
+  }
+
+  .buscar-admin input {
+    font: inherit;
+    font-size: 0.86rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--linea-fuerte);
+    background: #fff;
+    border-radius: 0;
+    min-width: 220px;
+  }
+
+  .tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .tabla th {
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 2px solid var(--salvia);
+    padding: 0 0.6rem 0.6rem;
+  }
+
+  .tabla td {
+    padding: 0.75rem 0.6rem;
+    border-bottom: 1px solid var(--linea);
+    vertical-align: top;
+  }
+
+  .tabla td:first-child,
+  .tabla th:first-child {
+    padding-left: 0;
+  }
+
+  .tabla a:hover {
+    color: var(--salvia);
+    text-decoration: underline;
+  }
+
+  .tabla__sub {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+  }
+
+  .tabla__nuevo td {
+    background: #eef3ef;
+  }
+
+  .stock {
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .stock--bajo {
+    color: var(--henna);
+  }
+
+  .estado {
+    display: inline-block;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid currentColor;
+  }
+
+  .estado--activo,
+  .estado--entregado {
+    color: var(--salvia);
+  }
+
+  .estado--inactivo {
+    color: var(--tinta-suave);
+  }
+
+  .estado--pendiente,
+  .estado--en-camino {
+    color: var(--henna);
+  }
+
+  .pendiente {
+    border-top: 1px solid var(--linea-fuerte);
+    padding-top: 1.4rem;
+  }
+
+  .pendiente ul {
+    margin: 0.9rem 0 0;
+    padding-left: 1.1rem;
+    color: var(--tinta-suave);
+    font-size: 0.92rem;
+  }
+
+  .pendiente li {
+    padding: 0.25rem 0;
+  }
+
+  @media (max-width: 900px) {
+    .metricas {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .tabla {
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .metricas {
+      grid-template-columns: 1fr;
+    }
+    .admin__cab {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+  }
+</style>

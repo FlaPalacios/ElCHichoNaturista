@@ -1,0 +1,462 @@
+---
+import { categorias, masVendidos } from '../data/productos.js';
+import { tienda } from '../data/tienda.js';
+
+const { activo = '' } = Astro.props;
+const destacadoMenu = masVendidos().slice(0, 3);
+---
+
+<div class="cintillo">
+  <div
+    class="env cintillo__env"
+    x-data={`{ i: 0, avisos: ${JSON.stringify(tienda.avisos)} }`}
+    x-init="setInterval(() => i = (i + 1) % avisos.length, 5000)"
+  >
+    <span class="cintillo__nav" aria-hidden="true">◀</span>
+    <template x-for="(aviso, k) in avisos" :key="k">
+      <p class="cintillo__texto" x-show="i === k" x-transition.opacity.duration.500ms x-text="aviso"></p>
+    </template>
+    <noscript><p class="cintillo__texto">{tienda.avisos[0]}</p></noscript>
+    <span class="cintillo__nav" aria-hidden="true">▶</span>
+  </div>
+</div>
+
+<header class="cabecera" x-data="{ mega: false, buscar: false }" @keydown.escape.window="mega = false; buscar = false">
+  <div class="env cabecera__env">
+    <a href="/" class="marca" aria-label={`${tienda.nombre} · inicio`}>
+      <img src="/logo-1.png" alt="" width="72" height="72" class="marca__sello" />
+      <span class="marca__texto">
+        <strong>El Chico</strong>
+        <em>Naturista</em>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Principal">
+      <div
+        class="nav__item"
+        @mouseenter="if (window.matchMedia('(hover: hover)').matches) mega = true"
+        @mouseleave="mega = false"
+        @click.outside="mega = false"
+      >
+        <a
+          href="/catalogo"
+          class:list={['nav__enlace', activo === 'catalogo' && 'nav__enlace--activo']}
+          aria-haspopup="true"
+          :aria-expanded="mega"
+          @click="if (!window.matchMedia('(hover: hover)').matches) { $event.preventDefault(); mega = !mega }"
+        >
+          Catálogo
+          <span class="nav__flecha" aria-hidden="true">▾</span>
+        </a>
+
+        <div class="mega" x-show="mega" x-cloak x-transition.opacity.duration.150ms>
+          <div class="env mega__env">
+            <div class="mega__cols">
+              {
+                categorias.map((c, i) => (
+                  <div class="mega__col">
+                    <span class="indice">{String(i + 1).padStart(2, '0')}</span>
+                    <a href={`/catalogo?categoria=${c.slug}`} class="mega__titulo">
+                      {c.nombre}
+                    </a>
+                    <p class="mega__linea">{c.linea}</p>
+                    <p class="mega__resumen">{c.resumen}</p>
+                  </div>
+                ))
+              }
+            </div>
+            <aside class="mega__aparte">
+              <p class="kicker">Los que más salen</p>
+              <ul class="mega__lista">
+                {
+                  destacadoMenu.map((p) => (
+                    <li>
+                      <a href={`/producto/${p.slug}`}>
+                        <span>{p.nombre}</span>
+                        <span class="mega__precio">S/ {p.precio.toFixed(2)}</span>
+                      </a>
+                    </li>
+                  ))
+                }
+              </ul>
+              <a href="/catalogo" class="enlace-mas">Ver todo el catálogo</a>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <a
+        href="/catalogo?categoria=cosmetica-capilar"
+        class:list={['nav__enlace', activo === 'henna' && 'nav__enlace--activo']}>Henna Colors</a
+      >
+      <a
+        href="/catalogo?categoria=superalimentos"
+        class:list={['nav__enlace', activo === 'superalimentos' && 'nav__enlace--activo']}>Superalimentos</a
+      >
+      <a
+        href="/catalogo?categoria=aceites"
+        class:list={['nav__enlace', activo === 'aceites' && 'nav__enlace--activo']}>Aceites</a
+      >
+    </nav>
+
+    <div class="acciones">
+      <button class="accion" @click="buscar = !buscar" aria-label="Buscar productos">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="M20 20l-3.6-3.6"></path>
+        </svg>
+      </button>
+
+      <a href="/cuenta" class="accion" aria-label="Mi cuenta">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4.5 20c1.3-4 4.1-6 7.5-6s6.2 2 7.5 6"></path>
+        </svg>
+      </a>
+
+      <button class="accion accion--carrito" @click="$store.carrito.abierto = true" aria-label="Abrir carrito">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
+          <path d="M4 7h16l-1.4 11.2A2 2 0 0 1 16.6 20H7.4a2 2 0 0 1-2-1.8L4 7Z"></path>
+          <path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path>
+        </svg>
+        <span class="contador" x-show="$store.carrito.unidades > 0" x-cloak x-text="$store.carrito.unidades"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="buscador" x-show="buscar" x-cloak x-transition.opacity>
+    <form class="env buscador__env" action="/catalogo" method="get">
+      <label for="q" class="solo-lector">Buscar productos</label>
+      <input id="q" name="q" type="search" placeholder="Henna castaño, maca, aceite de romero…" x-ref="q" x-init="$watch('buscar', v => v && setTimeout(() => $refs.q.focus(), 60))" />
+      <button class="btn" type="submit">Buscar</button>
+      <button type="button" class="buscador__cerrar" @click="buscar = false" aria-label="Cerrar búsqueda">✕</button>
+    </form>
+  </div>
+</header>
+
+<style>
+  .cintillo {
+    background: var(--salvia);
+    color: #e7eee9;
+    font-size: 0.74rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .cintillo__env {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    min-height: 38px;
+    position: relative;
+  }
+
+  .cintillo__texto {
+    margin: 0;
+    text-align: center;
+  }
+
+  .cintillo__nav {
+    opacity: 0.45;
+    font-size: 0.6rem;
+  }
+
+  .cabecera {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: var(--fondo);
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .cabecera__env {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    min-height: 88px;
+  }
+
+  .marca {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .marca__sello {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+  }
+
+  .marca__texto {
+    display: flex;
+    flex-direction: column;
+    font-family: var(--serif);
+    line-height: 1;
+    color: var(--salvia);
+  }
+
+  .marca__texto strong {
+    font-size: 1.24rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .marca__texto em {
+    font-style: normal;
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    font-family: var(--sans);
+    margin-top: 0.3rem;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 1.9rem;
+    margin-left: auto;
+  }
+
+  .nav__item {
+    position: static;
+  }
+
+  .nav__enlace {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding-block: 0.4rem;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .nav__enlace:hover,
+  .nav__enlace--activo {
+    border-color: var(--salvia);
+    color: var(--salvia);
+  }
+
+  .nav__flecha {
+    font-size: 0.6rem;
+    margin-left: 0.2rem;
+    opacity: 0.6;
+  }
+
+  .mega {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    background: var(--fondo);
+    border-bottom: 1px solid var(--linea);
+    box-shadow: 0 18px 30px -26px rgba(51, 57, 58, 0.5);
+  }
+
+  .mega__env {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 3rem;
+    padding-block: 2.4rem 2.8rem;
+  }
+
+  .mega__cols {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+  }
+
+  .mega__col {
+    border-top: 1px solid var(--linea-fuerte);
+    padding-top: 0.9rem;
+  }
+
+  .mega__col .indice {
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .mega__titulo {
+    font-family: var(--serif);
+    font-size: 1.14rem;
+    font-weight: 600;
+    color: var(--salvia);
+    display: inline-block;
+    border-bottom: 1px solid transparent;
+  }
+
+  .mega__titulo:hover {
+    border-color: var(--salvia);
+  }
+
+  .mega__linea {
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--henna);
+    margin: 0.35rem 0 0.6rem;
+  }
+
+  .mega__resumen {
+    font-size: 0.87rem;
+    color: var(--tinta-suave);
+    margin: 0;
+  }
+
+  .mega__aparte {
+    border-left: 1px solid var(--linea);
+    padding-left: 2rem;
+  }
+
+  .mega__lista {
+    list-style: none;
+    margin: 1rem 0 1.2rem;
+    padding: 0;
+  }
+
+  .mega__lista li + li {
+    border-top: 1px dotted var(--linea-fuerte);
+  }
+
+  .mega__lista a {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    font-size: 0.9rem;
+  }
+
+  .mega__lista a:hover {
+    color: var(--salvia);
+  }
+
+  .mega__precio {
+    font-family: var(--serif);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .accion {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--tinta);
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .accion:hover {
+    border-color: var(--linea-fuerte);
+    color: var(--salvia);
+  }
+
+  .contador {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    min-width: 19px;
+    height: 19px;
+    display: grid;
+    place-items: center;
+    padding-inline: 4px;
+    background: var(--henna);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    border-radius: 999px;
+  }
+
+  .buscador {
+    border-top: 1px solid var(--linea);
+    background: var(--papel);
+  }
+
+  .buscador__env {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-block: 1.1rem;
+  }
+
+  .buscador input {
+    flex: 1;
+    font: inherit;
+    font-size: 1.05rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--linea-fuerte);
+    background: #fff;
+    border-radius: 0;
+  }
+
+  .buscador__cerrar {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: var(--tinta-suave);
+    padding: 0.5rem;
+  }
+
+  @media (max-width: 1024px) {
+    .nav__enlace:not(:first-child) {
+      display: none;
+    }
+    .nav .nav__item .nav__enlace {
+      display: inline-block;
+    }
+    .mega__env {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .mega__cols {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .mega__aparte {
+      border-left: none;
+      border-top: 1px solid var(--linea);
+      padding-left: 0;
+      padding-top: 1.2rem;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .cabecera__env {
+      min-height: 72px;
+      gap: 1rem;
+    }
+    .marca__sello {
+      width: 46px;
+      height: 46px;
+    }
+    .marca__texto strong {
+      font-size: 1.02rem;
+    }
+    .marca__texto em {
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+    }
+    .nav {
+      gap: 1rem;
+    }
+    .mega__cols {
+      grid-template-columns: 1fr;
+      gap: 1.2rem;
+    }
+    .cintillo__nav {
+      display: none;
+    }
+  }
+</style>

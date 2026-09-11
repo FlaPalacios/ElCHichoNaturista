@@ -1,0 +1,176 @@
+---
+import { categorias } from '../data/productos.js';
+import { tienda, waLink } from '../data/tienda.js';
+import Greca from './Greca.astro';
+
+const anio = new Date().getFullYear();
+---
+
+<footer class="pie">
+  <Greca color="#7A9B87" />
+
+  <div class="env pie__env">
+    <section class="pie__marca">
+      <img src="/logo-1.png" alt={tienda.nombre} width="110" height="110" />
+      <p class="pie__lema">
+        Productos naturales que se pueden rastrear hasta quien los cosecha. Sin promesas milagrosas.
+      </p>
+      <div class="pie__redes">
+        <a href={tienda.instagram} target="_blank" rel="noopener">Instagram</a>
+        <a href={tienda.facebook} target="_blank" rel="noopener">Facebook</a>
+      </div>
+    </section>
+
+    <nav class="pie__col" aria-label="Categorías">
+      <p class="kicker">Catálogo</p>
+      <ul>
+        {categorias.map((c) => <li><a href={`/catalogo?categoria=${c.slug}`}>{c.nombre}</a></li>)}
+        <li><a href="/catalogo">Ver todo</a></li>
+      </ul>
+    </nav>
+
+    <nav class="pie__col" aria-label="Tu cuenta">
+      <p class="kicker">Tu pedido</p>
+      <ul>
+        <li><a href="/carrito">Carrito</a></li>
+        <li><a href="/checkout">Finalizar pedido</a></li>
+        <li><a href="/cuenta">Mi cuenta</a></li>
+        <li><a href={waLink('Hola, tengo una consulta sobre un pedido.')} target="_blank" rel="noopener">Consultar por WhatsApp</a></li>
+      </ul>
+    </nav>
+
+    <section class="pie__col">
+      <p class="kicker">Dónde estamos</p>
+      <ul class="pie__datos">
+        <li>{tienda.direccion}</li>
+        <li>{tienda.horario}</li>
+        <li><a href={waLink('Hola, quiero hacer una consulta.')} target="_blank" rel="noopener">{tienda.whatsappVisible}</a></li>
+        <li><a href={`mailto:${tienda.correo}`}>{tienda.correo}</a></li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="env pie__legal">
+    <p>© {anio} {tienda.nombre}. Lima, Perú.</p>
+    <p class="pie__aclaracion">
+      Los productos naturales no reemplazan un tratamiento médico. Ante cualquier condición de salud, consulta a un profesional.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .pie {
+    background: var(--salvia);
+    color: #dfe7e1;
+    margin-top: 4rem;
+  }
+
+  .pie__env {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(3, 1fr);
+    gap: 2.5rem;
+    padding-block: 3.5rem 2.5rem;
+  }
+
+  .pie__marca img {
+    width: 104px;
+    height: 104px;
+    object-fit: contain;
+    background: var(--papel);
+    border-radius: 50%;
+    padding: 7px;
+  }
+
+  .pie__lema {
+    font-family: var(--serif);
+    font-size: 1.06rem;
+    line-height: 1.45;
+    max-width: 30ch;
+    margin: 1.1rem 0 1.2rem;
+    color: #eef2ee;
+  }
+
+  .pie__redes {
+    display: flex;
+    gap: 1.2rem;
+    font-size: 0.76rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .pie__redes a {
+    border-bottom: 1px solid rgba(223, 231, 225, 0.4);
+    padding-bottom: 2px;
+  }
+
+  .pie__redes a:hover {
+    border-color: currentColor;
+  }
+
+  .pie .kicker {
+    color: var(--jade-claro);
+    margin-bottom: 1rem;
+  }
+
+  .pie__col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .pie__col li {
+    padding: 0.3rem 0;
+    font-size: 0.92rem;
+  }
+
+  .pie__col a {
+    border-bottom: 1px solid transparent;
+  }
+
+  .pie__col a:hover {
+    border-color: currentColor;
+  }
+
+  .pie__datos li {
+    color: #cad6ce;
+  }
+
+  .pie__legal {
+    border-top: 1px solid rgba(223, 231, 225, 0.22);
+    padding-block: 1.2rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    font-size: 0.78rem;
+    color: #bccbc2;
+  }
+
+  .pie__legal p {
+    margin: 0;
+  }
+
+  .pie__aclaracion {
+    max-width: 58ch;
+    text-align: right;
+  }
+
+  @media (max-width: 900px) {
+    .pie__env {
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+    .pie__legal {
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .pie__aclaracion {
+      text-align: left;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .pie__env {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

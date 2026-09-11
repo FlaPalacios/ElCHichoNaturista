@@ -1,0 +1,202 @@
+---
+// Imagen de producto dibujada, no fotográfica: mientras no haya fotos reales
+// del catálogo, cada producto recibe una etiqueta con el envase que le
+// corresponde sobre el paisaje del sello de la marca.
+// En la etapa 4 esto se reemplaza por <img src={producto.imagen}>.
+
+const { producto, alto = false, class: clase = '' } = Astro.props;
+
+// El envase se deduce de la presentación: así no hay que mantener otro campo.
+function envaseDe(p) {
+  const t = (p.presentacion || '').toLowerCase();
+  if (t.includes('sobre')) return 'sobre';
+  if (t.includes('cápsulas')) return 'capsulas';
+  if (t.includes('barra')) return 'barra';
+  if (t.includes('bolsa')) return 'bolsa';
+  if (t.includes('botella')) return 'botella';
+  if (t.includes('gotero')) return 'gotero';
+  if (t.includes('ámbar')) return 'ambar';
+  if (t.includes('frasco')) return 'tarro';
+  return 'kit';
+}
+
+// Cada departamento tiene su propia gama, y dentro de ella cada producto
+// toma una variante. Así el catálogo no se ve como 25 veces la misma lámina.
+const gamas = {
+  'cosmetica-capilar': [
+    { fondo: '#F1E7E1', cerro: '#C9A493', envase: '#5A3A24', detalle: '#A8552F' },
+    { fondo: '#EFE9DC', cerro: '#B9A88C', envase: '#2F5D50', detalle: '#A8552F' },
+    { fondo: '#EDE7E0', cerro: '#BBA99A', envase: '#33393A', detalle: '#7A9B87' },
+  ],
+  suplementos: [
+    { fondo: '#E4EBE4', cerro: '#7A9B87', envase: '#21423A', detalle: '#A8552F' },
+    { fondo: '#EDEEE4', cerro: '#9DA98A', envase: '#3F5A2E', detalle: '#C8B48C' },
+    { fondo: '#E6E9EC', cerro: '#93A3A8', envase: '#2F5D50', detalle: '#A8552F' },
+  ],
+  aceites: [
+    { fondo: '#F2EADA', cerro: '#C8B48C', envase: '#7A4A22', detalle: '#2F5D50' },
+    { fondo: '#E8EDE6', cerro: '#8FA98F', envase: '#2F5D50', detalle: '#C8B48C' },
+    { fondo: '#EFE6E2', cerro: '#C4A292', envase: '#8A3F2A', detalle: '#7A9B87' },
+  ],
+  superalimentos: [
+    { fondo: '#EDE4D5', cerro: '#BFA47E', envase: '#4A3426', detalle: '#A8552F' },
+    { fondo: '#E7E9DE', cerro: '#A3AE8C', envase: '#6B5334', detalle: '#2F5D50' },
+    { fondo: '#F0E8DC', cerro: '#C8B48C', envase: '#2F5D50', detalle: '#8A5A2B' },
+  ],
+};
+
+// Los tintes mandan sobre la gama: un castaño no puede salir verde.
+const tintes = [
+  { clave: 'castaño', envase: '#4A3123', detalle: '#A8552F' },
+  { clave: 'cobrizo', envase: '#A8552F', detalle: '#5A3A24' },
+  { clave: 'índigo', envase: '#242C38', detalle: '#6B7C99' },
+];
+
+const gama = gamas[producto.categoria] || gamas.suplementos;
+const base = gama[producto.id % gama.length];
+const tinte = tintes.find((t) => producto.nombre.toLowerCase().includes(t.clave));
+const pal = tinte ? { ...base, envase: tinte.envase, detalle: tinte.detalle } : base;
+
+const envase = envaseDe(producto);
+const uid = `e${producto.id}`;
+const h = alto ? 460 : 360;
+---
+
+<svg
+  class:list={['etiqueta', clase]}
+  viewBox={`0 0 300 ${h}`}
+  role="img"
+  aria-label={`Ilustración de ${producto.nombre}`}
+  preserveAspectRatio="xMidYMid slice"
+>
+  <defs>
+    <pattern id={`${uid}-puntos`} width="10" height="10" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.9" fill={pal.cerro} opacity="0.28" />
+    </pattern>
+    <pattern id={`${uid}-greca`} width="16" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 7 L4 1 L8 7 L12 1 L16 7" fill="none" stroke={pal.cerro} stroke-width="1.2" />
+    </pattern>
+    <clipPath id={`${uid}-marco`}>
+      <rect x="0" y="0" width="300" height={h} />
+    </clipPath>
+  </defs>
+
+  <g clip-path={`url(#${uid}-marco)`}>
+    <rect width="300" height={h} fill={pal.fondo} />
+    <rect width="300" height={h} fill={`url(#${uid}-puntos)`} />
+
+    <!-- greca andina, como la del sello -->
+    <rect x="0" y="22" width="300" height="8" fill={`url(#${uid}-greca)`} opacity="0.55" />
+
+    <!-- cerros -->
+    <path
+      d={`M-10 ${h - 92} L60 ${h - 168} L112 ${h - 112} L150 ${h - 150} L214 ${h - 78} L262 ${h - 124} L310 ${h - 74} L310 ${h} L-10 ${h} Z`}
+      fill={pal.cerro}
+      opacity="0.42"
+    />
+    <path
+      d={`M-10 ${h - 54} L52 ${h - 104} L118 ${h - 58} L176 ${h - 96} L242 ${h - 48} L310 ${h - 86} L310 ${h} L-10 ${h} Z`}
+      fill={pal.cerro}
+      opacity="0.72"
+    />
+
+    <!-- envase -->
+    <g transform={`translate(150 ${h / 2 - 18})`} stroke-linejoin="round">
+      {envase === 'sobre' && (
+        <g>
+          <path d="M-58 -84 H58 V84 H-58 Z" fill={pal.envase} />
+          <path d="M-58 -84 H58 V-64 H-58 Z" fill="#000" opacity="0.22" />
+          <path d="M-46 -40 H46 V26 H-46 Z" fill={pal.fondo} opacity="0.92" />
+          <path d="M-34 -26 H34" stroke={pal.envase} stroke-width="3" />
+          <path d="M-34 -12 H18" stroke={pal.detalle} stroke-width="3" />
+          <circle cx="0" cy="8" r="10" fill="none" stroke={pal.envase} stroke-width="2" />
+          <path d="M0 2 c8 4 8 12 0 14 c-8 -2 -8 -10 0 -14 Z" fill={pal.envase} opacity="0.8" />
+          <path d="M-58 50 H58" stroke={pal.fondo} stroke-width="2" opacity="0.5" />
+        </g>
+      )}
+      {envase === 'capsulas' && (
+        <g>
+          <rect x="-46" y="-72" width="92" height="26" rx="3" fill={pal.envase} opacity="0.9" />
+          <rect x="-52" y="-48" width="104" height="132" rx="8" fill={pal.envase} />
+          <rect x="-40" y="-28" width="80" height="72" rx="4" fill={pal.fondo} opacity="0.94" />
+          <path d="M-26 -6 h34" stroke={pal.envase} stroke-width="3.5" />
+          <path d="M-26 6 h20" stroke={pal.detalle} stroke-width="3.5" />
+          <rect x="-26" y="18" width="52" height="14" rx="7" fill={pal.detalle} opacity="0.55" />
+          <rect x="-14" y="18" width="40" height="14" rx="7" fill={pal.envase} opacity="0.35" />
+        </g>
+      )}
+      {(envase === 'ambar' || envase === 'gotero') && (
+        <g>
+          <rect x="-12" y="-96" width="24" height="30" rx="2" fill={pal.detalle} />
+          <rect x="-20" y="-70" width="40" height="12" rx="2" fill={pal.envase} opacity="0.85" />
+          <path d="M-34 -58 H34 V64 a12 12 0 0 1 -12 12 H-22 a12 12 0 0 1 -12 -12 Z" fill={pal.envase} />
+          <rect x="-24" y="-30" width="48" height="54" rx="3" fill={pal.fondo} opacity="0.9" />
+          <path d="M-12 -14 h24" stroke={pal.envase} stroke-width="3" />
+          <path d="M-12 -4 h16" stroke={pal.detalle} stroke-width="3" />
+          <path d="M0 6 c9 6 9 16 0 18 c-9 -2 -9 -12 0 -18 Z" fill={pal.envase} opacity="0.75" />
+        </g>
+      )}
+      {envase === 'botella' && (
+        <g>
+          <rect x="-11" y="-110" width="22" height="22" rx="2" fill={pal.detalle} />
+          <path d="M-11 -88 h22 v18 l16 22 v134 H-27 V-48 l16 -22 Z" fill={pal.envase} />
+          <rect x="-22" y="-16" width="44" height="62" rx="3" fill={pal.fondo} opacity="0.9" />
+          <path d="M-12 2 h24" stroke={pal.envase} stroke-width="3" />
+          <path d="M-12 12 h14" stroke={pal.detalle} stroke-width="3" />
+          <path d="M-27 60 H27" stroke={pal.fondo} stroke-width="2" opacity="0.45" />
+        </g>
+      )}
+      {envase === 'bolsa' && (
+        <g>
+          <path d="M-56 -70 h112 v154 h-112 Z" fill={pal.envase} />
+          <path d="M-56 -70 h112 l-14 -16 h-84 Z" fill={pal.envase} opacity="0.6" />
+          <path d="M-44 -34 h88 v56 h-88 Z" fill={pal.fondo} opacity="0.93" />
+          <path d="M-30 -16 h60" stroke={pal.envase} stroke-width="3.5" />
+          <path d="M-30 -4 h38" stroke={pal.detalle} stroke-width="3.5" />
+          <circle cx="0" cy="12" r="9" fill="none" stroke={pal.envase} stroke-width="2" />
+          <path d="M-4 12 l3 4 l6 -8" fill="none" stroke={pal.envase} stroke-width="2" />
+          <path d="M-56 52 h112" stroke={pal.fondo} stroke-width="2" opacity="0.4" />
+        </g>
+      )}
+      {envase === 'tarro' && (
+        <g>
+          <rect x="-40" y="-84" width="80" height="20" rx="4" fill={pal.detalle} />
+          <path d="M-44 -64 H44 V62 a14 14 0 0 1 -14 14 H-30 a14 14 0 0 1 -14 -14 Z" fill={pal.envase} />
+          <rect x="-32" y="-34" width="64" height="58" rx="3" fill={pal.fondo} opacity="0.92" />
+          <path d="M-18 -16 h36" stroke={pal.envase} stroke-width="3.5" />
+          <path d="M-18 -4 h22" stroke={pal.detalle} stroke-width="3.5" />
+          <path d="M0 8 c10 6 10 18 0 20 c-10 -2 -10 -14 0 -20 Z" fill={pal.envase} opacity="0.75" />
+        </g>
+      )}
+      {envase === 'barra' && (
+        <g>
+          <path d="M-56 -34 h112 v76 h-112 Z" fill={pal.envase} />
+          <path d="M-56 -34 l16 -16 h112 l-16 16 Z" fill={pal.envase} opacity="0.65" />
+          <path d="M56 -34 l16 -16 v76 l-16 16 Z" fill="#000" opacity="0.16" />
+          <path d="M-34 -12 h68" stroke={pal.fondo} stroke-width="4" />
+          <path d="M-34 2 h44" stroke={pal.detalle} stroke-width="4" />
+        </g>
+      )}
+      {envase === 'kit' && (
+        <g>
+          <path d="M-64 -6 H30 a6 6 0 0 1 6 6 v18 a44 30 0 0 1 -44 30 h-14 a44 30 0 0 1 -44 -30 V0 a6 6 0 0 1 6 -6 Z" fill={pal.envase} />
+          <ellipse cx="-17" cy="-6" rx="47" ry="14" fill={pal.fondo} opacity="0.9" />
+          <ellipse cx="-17" cy="-6" rx="34" ry="9" fill={pal.detalle} opacity="0.55" />
+          <path d="M28 -78 l14 -6 l30 74 l-14 6 Z" fill={pal.envase} opacity="0.9" />
+          <path d="M58 -8 l16 -7 l10 24 l-16 7 Z" fill={pal.detalle} />
+        </g>
+      )}
+    </g>
+  </g>
+
+  <rect x="0.5" y="0.5" width="299" height={h - 1} fill="none" stroke="#b9b5a8" stroke-width="1" />
+</svg>
+
+<style>
+  .etiqueta {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: var(--papel);
+  }
+</style>

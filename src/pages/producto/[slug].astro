@@ -1,0 +1,467 @@
+---
+import Base from '../../layouts/Base.astro';
+import Etiqueta from '../../components/Etiqueta.astro';
+import ProductoCard from '../../components/ProductoCard.astro';
+import { activos, categoriaPorSlug, porCategoria } from '../../data/productos.js';
+import { waLink } from '../../data/tienda.js';
+
+export function getStaticPaths() {
+  return activos().map((producto) => ({
+    params: { slug: producto.slug },
+    props: { producto },
+  }));
+}
+
+const { producto } = Astro.props;
+const cat = categoriaPorSlug(producto.categoria);
+const oferta = Boolean(producto.precioAntes);
+const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
+const relacionados = porCategoria(producto.categoria)
+  .filter((p) => p.id !== producto.id)
+  .slice(0, 3);
+
+const paraCarrito = {
+  id: producto.id,
+  slug: producto.slug,
+  nombre: producto.nombre,
+  precio: producto.precio,
+  presentacion: producto.presentacion,
+  categoria: producto.categoria,
+  stock: producto.stock,
+};
+
+const consulta = waLink(
+  `Hola, quiero consultar por "${producto.nombre}" (${producto.presentacion}).`
+);
+---
+
+<Base title={producto.nombre} description={producto.descripcionCorta}>
+  <nav class="miga" aria-label="Ruta">
+    <div class="env">
+      <a href="/">Inicio</a>
+      <span aria-hidden="true">/</span>
+      <a href="/catalogo">Catálogo</a>
+      <span aria-hidden="true">/</span>
+      <a href={`/catalogo?categoria=${cat.slug}`}>{cat.nombre}</a>
+      <span aria-hidden="true">/</span>
+      <em>{producto.nombre}</em>
+    </div>
+  </nav>
+
+  <article class="env producto" x-data={`{ p: ${JSON.stringify(paraCarrito)}, cant: 1 }`}>
+    <div class="producto__vista">
+      <div class="producto__lamina">
+        <Etiqueta producto={producto} alto={true} />
+        {oferta && <span class="producto__oferta">−{dto}%</span>}
+      </div>
+      <p class="producto__pie-vista">
+        Ilustración de referencia · el envase puede variar según el lote
+      </p>
+    </div>
+
+    <div class="producto__datos">
+      <p class="producto__cat">
+        <a href={`/catalogo?categoria=${cat.slug}`}>{cat.nombre}</a>
+        <span>·</span>
+        {producto.origen}
+      </p>
+
+      <h1 class="producto__nombre">{producto.nombre}</h1>
+      <p class="producto__corta">{producto.descripcionCorta}</p>
+
+      <div class="producto__precio">
+        <p class="precio precio--grande">
+          S/ {producto.precio.toFixed(2)}
+          {oferta && <span class="precio-antes">S/ {producto.precioAntes.toFixed(2)}</span>}
+        </p>
+        <span class="producto__pres">{producto.presentacion}</span>
+      </div>
+
+      <p class="producto__stock">
+        {
+          producto.stock > 12 ? (
+            <><span class="punto punto--ok"></span> Disponible · sale hoy mismo en Lima</>
+          ) : (
+            <><span class="punto punto--poco"></span> Últimas {producto.stock} unidades</>
+          )
+        }
+      </p>
+
+      <div class="compra">
+        <div class="paso paso--grande">
+          <button @click="cant = Math.max(1, cant - 1)" aria-label="Menos uno">−</button>
+          <span x-text="cant">1</span>
+          <button @click={`cant = Math.min(${producto.stock}, cant + 1)`} aria-label="Uno más">+</button>
+        </div>
+        <button class="btn compra__agregar" @click="$store.carrito.agregar(p, cant)" type="button">
+          Agregar al carrito
+        </button>
+      </div>
+
+      <a href={consulta} target="_blank" rel="noopener" class="btn btn--wa btn--bloque">
+        Consultar por WhatsApp
+      </a>
+
+      <ul class="promesas">
+        <li>Pago contra entrega o transferencia, coordinado por chat</li>
+        <li>Envío gratis en Lima desde S/ 120</li>
+        <li>A provincia por Shalom u Olva, previa coordinación</li>
+      </ul>
+
+      <section class="bloque">
+        <h2 class="bloque__t">Qué es</h2>
+        <p>{producto.descripcion}</p>
+      </section>
+
+      <section class="bloque">
+        <h2 class="bloque__t">Por qué lo tenemos</h2>
+        <ul class="beneficios">
+          {producto.beneficios.map((b) => <li>{b}</li>)}
+        </ul>
+      </section>
+
+      <section class="bloque bloque--uso">
+        <h2 class="bloque__t">Cómo se usa</h2>
+        <p>{producto.modoUso}</p>
+      </section>
+
+      <details class="detalle">
+        <summary>Ficha corta</summary>
+        <dl class="ficha-datos">
+          <div><dt>Presentación</dt><dd>{producto.presentacion}</dd></div>
+          <div><dt>Origen</dt><dd>{producto.origen}</dd></div>
+          <div><dt>Departamento</dt><dd>{cat.nombre}</dd></div>
+          <div><dt>Código</dt><dd>ECN-{producto.id}</dd></div>
+        </dl>
+      </details>
+    </div>
+  </article>
+
+  {
+    relacionados.length > 0 && (
+      <section class="seccion seccion--papel">
+        <div class="env">
+          <div class="cabecera-seccion">
+            <div>
+              <p class="kicker">Del mismo estante</p>
+              <h2 class="titulo">También en {cat.nombre.toLowerCase()}</h2>
+            </div>
+            <span class="cabecera-seccion__linea" />
+            <a href={`/catalogo?categoria=${cat.slug}`} class="enlace-mas">
+              Ver el departamento
+            </a>
+          </div>
+          <div class="relacionados">
+            {relacionados.map((p, i) => (
+              <ProductoCard producto={p} indice={i + 1} />
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+</Base>
+
+<style>
+  .miga {
+    border-bottom: 1px solid var(--linea);
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  .miga .env {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-block: 0.9rem;
+  }
+
+  .miga a:hover {
+    color: var(--salvia);
+    text-decoration: underline;
+  }
+
+  .miga em {
+    font-style: normal;
+    color: var(--tinta);
+  }
+
+  .producto {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(2rem, 5vw, 4.5rem);
+    padding-block: 3rem 4rem;
+    align-items: start;
+  }
+
+  .producto__vista {
+    position: sticky;
+    top: 120px;
+  }
+
+  .producto__lamina {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    border: 1px solid var(--linea-fuerte);
+    overflow: hidden;
+    background: var(--papel);
+  }
+
+  .producto__lamina :global(svg) {
+    height: 100%;
+  }
+
+  .producto__oferta {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: var(--henna);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .producto__pie-vista {
+    font-size: 0.74rem;
+    color: var(--tinta-suave);
+    margin: 0.6rem 0 0;
+    text-align: right;
+  }
+
+  .producto__cat {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--jade);
+    margin: 0 0 1rem;
+  }
+
+  .producto__cat a:hover {
+    color: var(--salvia);
+  }
+
+  .producto__nombre {
+    font-size: clamp(2rem, 3.6vw, 2.9rem);
+    margin-bottom: 0.8rem;
+  }
+
+  .producto__corta {
+    font-size: 1.12rem;
+    color: var(--tinta-suave);
+    max-width: 48ch;
+    margin-bottom: 1.6rem;
+  }
+
+  .producto__precio {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    border-top: 1px solid var(--linea-fuerte);
+    border-bottom: 1px solid var(--linea-fuerte);
+    padding-block: 1rem;
+  }
+
+  .precio--grande {
+    font-size: 2rem;
+    margin: 0;
+  }
+
+  .producto__pres {
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin-left: auto;
+  }
+
+  .producto__stock {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin: 0.9rem 0 1.6rem;
+  }
+
+  .punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .punto--ok {
+    background: var(--jade);
+  }
+
+  .punto--poco {
+    background: var(--henna);
+  }
+
+  .compra {
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .paso--grande {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--salvia);
+  }
+
+  .paso--grande button {
+    background: none;
+    border: none;
+    width: 44px;
+    height: 100%;
+    font-size: 1.1rem;
+    color: var(--salvia);
+  }
+
+  .paso--grande span {
+    min-width: 40px;
+    text-align: center;
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    align-self: stretch;
+    line-height: 46px;
+    border-inline: 1px solid var(--salvia);
+  }
+
+  .compra__agregar {
+    flex: 1;
+  }
+
+  .promesas {
+    list-style: none;
+    margin: 1.6rem 0 2.4rem;
+    padding: 0;
+    font-size: 0.88rem;
+    color: var(--tinta-suave);
+  }
+
+  .promesas li {
+    padding: 0.42rem 0 0.42rem 1.3rem;
+    border-bottom: 1px dotted var(--linea);
+    position: relative;
+  }
+
+  .promesas li::before {
+    content: '·';
+    position: absolute;
+    left: 0.3rem;
+    color: var(--jade);
+    font-weight: 700;
+  }
+
+  .bloque {
+    margin-bottom: 1.8rem;
+  }
+
+  .bloque__t {
+    font-size: 0.72rem;
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--salvia);
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--linea-fuerte);
+  }
+
+  .bloque p {
+    margin: 0;
+    color: var(--tinta-suave);
+  }
+
+  .bloque--uso {
+    background: var(--papel);
+    padding: 1.2rem 1.3rem;
+    border-left: 3px solid var(--jade);
+  }
+
+  .bloque--uso .bloque__t {
+    border-color: var(--linea-fuerte);
+  }
+
+  .beneficios {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .beneficios li {
+    padding: 0.4rem 0 0.4rem 1.6rem;
+    position: relative;
+    color: var(--tinta-suave);
+  }
+
+  .beneficios li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--jade);
+    font-size: 0.9rem;
+  }
+
+  .detalle {
+    border-top: 1px solid var(--linea-fuerte);
+    padding-top: 0.9rem;
+  }
+
+  .detalle summary {
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+
+  .ficha-datos {
+    margin: 1rem 0 0;
+  }
+
+  .ficha-datos div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.42rem 0;
+    border-bottom: 1px dotted var(--linea);
+    font-size: 0.88rem;
+  }
+
+  .ficha-datos dt {
+    color: var(--tinta-suave);
+  }
+
+  .ficha-datos dd {
+    margin: 0;
+    text-align: right;
+  }
+
+  .relacionados {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+
+  @media (max-width: 900px) {
+    .producto {
+      grid-template-columns: 1fr;
+    }
+    .producto__vista {
+      position: static;
+    }
+    .relacionados {
+      grid-template-columns: 1fr;
+      gap: 2.2rem;
+    }
+  }
+</style>
