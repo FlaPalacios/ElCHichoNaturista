@@ -1,9 +1,16 @@
 ---
-import { categorias } from '../data/productos.js';
+import { obtenerCategorias } from '../lib/api.js';
 import { tienda, waLink } from '../data/tienda.js';
 import Greca from './Greca.astro';
 
 const anio = new Date().getFullYear();
+
+let categorias = [];
+try {
+  categorias = await obtenerCategorias();
+} catch {
+  categorias = [];
+}
 ---
 
 <footer class="pie">
@@ -82,7 +89,7 @@ const anio = new Date().getFullYear();
   }
 
   .pie__lema {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.06rem;
     line-height: 1.45;
     max-width: 30ch;

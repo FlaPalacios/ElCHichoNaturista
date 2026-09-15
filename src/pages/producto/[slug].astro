@@ -2,25 +2,45 @@
 import Base from '../../layouts/Base.astro';
 import Etiqueta from '../../components/Etiqueta.astro';
 import ProductoCard from '../../components/ProductoCard.astro';
-import { activos, categoriaPorSlug, porCategoria } from '../../data/productos.js';
+import ApiCaida from '../../components/ApiCaida.astro';
+import { obtenerProducto, obtenerProductos } from '../../lib/api.js';
 import { waLink } from '../../data/tienda.js';
 
-export function getStaticPaths() {
-  return activos().map((producto) => ({
-    params: { slug: producto.slug },
-    props: { producto },
-  }));
+// SSR: la ficha se arma en cada visita, así el stock y el precio están al día.
+const { slug } = Astro.params;
+
+let producto = null;
+let fallo = null;
+try {
+  producto = await obtenerProducto(slug);
+} catch (error) {
+  // La API está caída: eso no es un 404, es un problema nuestro.
+  fallo = error;
 }
 
-const { producto } = Astro.props;
-const cat = categoriaPorSlug(producto.categoria);
-const oferta = Boolean(producto.precioAntes);
-const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
-const relacionados = porCategoria(producto.categoria)
-  .filter((p) => p.id !== producto.id)
-  .slice(0, 3);
+// Producto inexistente, inactivo o borrado: 404 de verdad.
+if (!fallo && !producto) {
+  return Astro.rewrite('/404');
+}
 
-const paraCarrito = {
+const cat = producto
+  ? { slug: producto.categoria, nombre: producto.categoriaNombre }
+  : { slug: '', nombre: '' };
+const oferta = Boolean(producto?.precioAntes);
+const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
+
+let relacionados = [];
+if (producto) {
+  try {
+    relacionados = (await obtenerProductos({ categoria: producto.categoria }))
+      .filter((p) => p.id !== producto.id)
+      .slice(0, 3);
+  } catch {
+    relacionados = [];
+  }
+}
+
+const paraCarrito = producto && {
   id: producto.id,
   slug: producto.slug,
   nombre: producto.nombre,
@@ -30,12 +50,15 @@ const paraCarrito = {
   stock: producto.stock,
 };
 
-const consulta = waLink(
-  `Hola, quiero consultar por "${producto.nombre}" (${producto.presentacion}).`
-);
+const consulta = producto
+  ? waLink(`Hola, quiero consultar por "${producto.nombre}" (${producto.presentacion}).`)
+  : '#';
 ---
 
-<Base title={producto.nombre} description={producto.descripcionCorta}>
+<Base title={producto?.nombre ?? 'Producto'} description={producto?.descripcionCorta}>
+  {fallo && <ApiCaida error={fallo} />}
+  {!fallo && (
+  <>
   <nav class="miga" aria-label="Ruta">
     <div class="env">
       <a href="/">Inicio</a>
@@ -93,7 +116,7 @@ const consulta = waLink(
           <span x-text="cant">1</span>
           <button @click={`cant = Math.min(${producto.stock}, cant + 1)`} aria-label="Uno más">+</button>
         </div>
-        <button class="btn compra__agregar" @click="$store.carrito.agregar(p, cant)" type="button">
+        <button class="btn btn--cafe compra__agregar" @click="$store.carrito.agregar(p, cant)" type="button">
           Agregar al carrito
         </button>
       </div>
@@ -160,6 +183,8 @@ const consulta = waLink(
       </section>
     )
   }
+  </>
+  )}
 </Base>
 
 <style>
@@ -215,6 +240,7 @@ const consulta = waLink(
     position: absolute;
     top: 1rem;
     right: 1rem;
+    border-radius: 3px;
     background: var(--henna);
     color: #fff;
     font-size: 0.78rem;
@@ -312,6 +338,8 @@ const consulta = waLink(
     display: inline-flex;
     align-items: center;
     border: 1px solid var(--salvia);
+    border-radius: var(--radio);
+    overflow: hidden;
   }
 
   .paso--grande button {
@@ -326,7 +354,7 @@ const consulta = waLink(
   .paso--grande span {
     min-width: 40px;
     text-align: center;
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.05rem;
     align-self: stretch;
     line-height: 46px;
@@ -365,7 +393,7 @@ const consulta = waLink(
 
   .bloque__t {
     font-size: 0.72rem;
-    font-family: var(--sans);
+    font-family: var(--texto);
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;

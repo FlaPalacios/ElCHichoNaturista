@@ -1,10 +1,20 @@
 ---
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
-import { activos, categorias } from '../data/productos.js';
+import ApiCaida from '../components/ApiCaida.astro';
+import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
 
-const lista = activos();
-const precioTope = Math.ceil(Math.max(...lista.map((p) => p.precio)) / 5) * 5;
+// El filtrado sigue siendo instantáneo en el navegador (Alpine): traemos el
+// catálogo entero una vez y los filtros no vuelven a pegarle a la API.
+let lista = [];
+let categorias = [];
+let fallo = null;
+try {
+  [lista, categorias] = await Promise.all([obtenerProductos(), obtenerCategorias()]);
+} catch (error) {
+  fallo = error;
+}
+const precioTope = lista.length ? Math.ceil(Math.max(...lista.map((p) => p.precio)) / 5) * 5 : 100;
 
 // Metadatos que Alpine usa para filtrar y ordenar en el navegador.
 const meta = lista.map((p) => ({
@@ -28,8 +38,10 @@ const conteo = Object.fromEntries(
   description="Todo el catálogo de El Chico Naturista: henna, suplementos, aceites esenciales y superalimentos peruanos."
   activo="catalogo"
 >
+  {fallo && <ApiCaida error={fallo} />}
   <div
     class="catalogo"
+    hidden={Boolean(fallo)}
     x-data={`{
       q: '',
       cats: [],
@@ -267,7 +279,7 @@ const conteo = Object.fromEntries(
   }
 
   .rango__valor span:first-child {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-weight: 600;
     font-size: 1rem;
   }
@@ -279,6 +291,7 @@ const conteo = Object.fromEntries(
   .filtros__limpiar {
     background: none;
     border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
     width: 100%;
     padding: 0.6rem;
     font-size: 0.72rem;
@@ -311,7 +324,7 @@ const conteo = Object.fromEntries(
   }
 
   .resultados__cuenta strong {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.4rem;
     color: var(--tinta);
     margin-right: 0.3rem;
@@ -334,7 +347,7 @@ const conteo = Object.fromEntries(
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--linea-fuerte);
     background: #fff;
-    border-radius: 0;
+    border-radius: var(--radio);
   }
 
   .rejilla {

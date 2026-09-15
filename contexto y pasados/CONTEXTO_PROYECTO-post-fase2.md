@@ -128,15 +128,6 @@ migración), pero los endpoints se construyen de forma incremental por etapa.
 - NO copiar la estética de ninguna (colores, tipografía, layout exacto).
   El Chico Naturista usa su propia paleta e identidad definida arriba.
 
-## Páginas del sitio
-
-1. Inicio — hero de marca, categorías destacadas, productos más vendidos
-2. Catálogo — grid con búsqueda y filtros (categoría, precio)
-3. Detalle de producto
-4. Carrito
-5. Checkout — genera número de pedido, botón WhatsApp (`wa.me`)
-6. Cuenta (login/registro opcional, historial de pedidos)
-7. Panel de administración (protegido, solo Fernando)
 
 ## Orden de desarrollo (etapas)
 

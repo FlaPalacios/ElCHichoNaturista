@@ -134,7 +134,7 @@ import { tienda } from '../data/tienda.js';
   }
 
   .panel__cuenta {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.4rem;
     margin: 0.3rem 0 0;
   }
@@ -172,7 +172,7 @@ import { tienda } from '../data/tienda.js';
   }
 
   .panel__vacio-titulo {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.3rem;
     color: var(--tinta);
     margin-bottom: 0.4rem;
@@ -193,7 +193,7 @@ import { tienda } from '../data/tienda.js';
   }
 
   .linea__nombre {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1rem;
     font-weight: 600;
     line-height: 1.2;
@@ -213,6 +213,8 @@ import { tienda } from '../data/tienda.js';
     display: inline-flex;
     align-items: center;
     border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    overflow: hidden;
   }
 
   .paso button {
@@ -291,7 +293,7 @@ import { tienda } from '../data/tienda.js';
     border-top: 1px solid var(--linea-fuerte);
     margin-top: 0.5rem;
     padding-top: 0.6rem !important;
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.2rem !important;
     font-weight: 600;
   }
@@ -320,7 +322,8 @@ import { tienda } from '../data/tienda.js';
     bottom: 2rem;
     transform: translateX(-50%);
     z-index: 95;
-    background: var(--salvia);
+    border-radius: var(--radio);
+    background: var(--cafe);
     color: #f2efe6;
     font-size: 0.8rem;
     letter-spacing: 0.08em;

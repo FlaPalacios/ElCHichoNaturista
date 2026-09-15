@@ -3,6 +3,66 @@
    tarjetas flotantes: la estructura se dibuja con reglas finas, como una
    etiqueta impresa. */
 
+/* Tipografías servidas desde el propio sitio: nada de Google ni Fontshare
+   en tiempo de carga. Hind (Indian Type Foundry) para titulares, Amulya
+   (Indian Type Foundry, vía Fontshare) para texto. */
+
+@font-face {
+  font-family: 'Hind';
+  src: url('/fonts/hind-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Hind';
+  src: url('/fonts/hind-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Hind';
+  src: url('/fonts/hind-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Hind';
+  src: url('/fonts/hind-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Amulya';
+  src: url('/fonts/amulya-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Amulya';
+  src: url('/fonts/amulya-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Amulya';
+  src: url('/fonts/amulya-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Marca */
   --salvia: #2f5d50;
@@ -12,6 +72,8 @@
   --fondo: #f7f7f7;
 
   /* Derivados del sello: tinta pizarra, papel, henna */
+  /* Café: acento de contraste, solo en puntos concretos */
+  --cafe: #1c1919;
   --tinta: #33393a;
   --tinta-suave: #5f6866;
   --papel: #efe9dc;
@@ -22,14 +84,16 @@
   --linea: #d8d5cc;
   --linea-fuerte: #b9b5a8;
 
-  /* Tipografía */
-  --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
-  --sans: 'Karla', 'Segoe UI', system-ui, sans-serif;
+  /* Tipografía: Hind titula, Amulya lee */
+  --titular: 'Hind', 'Segoe UI', system-ui, sans-serif;
+  --texto: 'Amulya', 'Segoe UI', system-ui, sans-serif;
 
   /* Ritmo */
   --ancho: 1240px;
   --gutter: clamp(1.25rem, 4vw, 3.5rem);
   --borde: 1px solid var(--linea);
+  /* Curva ligera, la misma en botones y campos */
+  --radio: 5px;
 }
 
 *,
@@ -47,7 +111,7 @@ body {
   margin: 0;
   background: var(--fondo);
   color: var(--tinta);
-  font-family: var(--sans);
+  font-family: var(--texto);
   font-size: 16.5px;
   line-height: 1.6;
   font-variant-numeric: lining-nums tabular-nums;
@@ -74,11 +138,11 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-variation-settings: 'SOFT' 30, 'WONK' 1;
-  line-height: 1.08;
-  letter-spacing: -0.015em;
+  font-family: var(--titular);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--cafe);
   margin: 0;
   text-wrap: balance;
 }
@@ -117,7 +181,7 @@ p {
 /* ── Piezas tipográficas ────────────────────────────────────── */
 
 .kicker {
-  font-family: var(--sans);
+  font-family: var(--texto);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -149,9 +213,8 @@ p {
 }
 
 .indice {
-  font-family: var(--serif);
+  font-family: var(--titular);
   font-size: 0.85rem;
-  font-variation-settings: 'WONK' 0;
   color: var(--linea-fuerte);
   letter-spacing: 0.08em;
 }
@@ -202,7 +265,7 @@ p {
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  border-radius: 0;
+  border-radius: var(--radio);
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
@@ -219,6 +282,18 @@ p {
 .btn--linea:hover {
   background: var(--salvia);
   color: #f4f1e8;
+}
+
+/* Café: se usa con cuentagotas, donde hace falta que el ojo caiga primero. */
+.btn--cafe {
+  background: var(--cafe);
+  border-color: var(--cafe);
+  color: #f4f1e8;
+}
+
+.btn--cafe:hover {
+  background: #2e2828;
+  border-color: #2e2828;
 }
 
 .btn--wa {
@@ -278,7 +353,7 @@ p {
   padding: 0.72rem 0.85rem;
   background: #fff;
   border: 1px solid var(--linea-fuerte);
-  border-radius: 0;
+  border-radius: var(--radio);
   color: var(--tinta);
 }
 
@@ -302,6 +377,7 @@ p {
   text-transform: uppercase;
   padding: 0.3rem 0.6rem;
   border: 1px solid currentColor;
+  border-radius: 3px;
   color: var(--henna);
   background: transparent;
   line-height: 1;
@@ -312,15 +388,14 @@ p {
 }
 
 .precio {
-  font-family: var(--serif);
-  font-variation-settings: 'WONK' 0;
-  font-weight: 600;
+  font-family: var(--titular);
+  font-weight: 700;
   font-size: 1.22rem;
   letter-spacing: -0.01em;
 }
 
 .precio-antes {
-  font-family: var(--sans);
+  font-family: var(--texto);
   font-size: 0.88rem;
   color: var(--tinta-suave);
   text-decoration: line-through;

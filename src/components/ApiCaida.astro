@@ -1,0 +1,64 @@
+---
+// Se muestra cuando la API no responde: mejor un aviso con salida por
+// WhatsApp que una página en blanco o un error 500.
+import { tienda, waLink } from '../data/tienda.js';
+
+const { error } = Astro.props;
+const esDesarrollo = import.meta.env.DEV;
+---
+
+<section class="env caida">
+  <p class="kicker">Catálogo no disponible</p>
+  <h1 class="titulo">Estamos con un problema técnico</h1>
+  <p class="caida__d">
+    No pudimos cargar los productos en este momento. Vuelve a intentarlo en un rato o escríbenos
+    directo por WhatsApp: te armamos el pedido por el chat.
+  </p>
+
+  <div class="caida__acciones">
+    <a href={waLink('Hola, la web no carga los productos. Quiero hacer un pedido por acá.')} target="_blank" rel="noopener" class="btn btn--wa">
+      Escribir al {tienda.whatsappVisible}
+    </a>
+    <button class="btn btn--linea" onclick="location.reload()">Reintentar</button>
+  </div>
+
+  {
+    esDesarrollo && error && (
+      <pre class="caida__tecnico">{error.message}</pre>
+    )
+  }
+</section>
+
+<style>
+  .caida {
+    padding-block: clamp(3rem, 8vw, 5.5rem);
+    max-width: 640px;
+  }
+
+  .caida .kicker {
+    margin-bottom: 0.8rem;
+  }
+
+  .caida__d {
+    color: var(--tinta-suave);
+    font-size: 1.05rem;
+    margin-block: 1rem 2rem;
+  }
+
+  .caida__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+
+  .caida__tecnico {
+    margin-top: 2.5rem;
+    padding: 1rem;
+    background: var(--papel);
+    border-left: 3px solid var(--henna);
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+</style>

@@ -1,6 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
-import { categorias } from '../data/productos.js';
+import { obtenerCategorias } from '../lib/api.js';
+
+let categorias = [];
+try {
+  categorias = await obtenerCategorias();
+} catch {
+  categorias = [];
+}
 ---
 
 <Base title="Página no encontrada">
@@ -47,7 +54,7 @@ import { categorias } from '../data/productos.js';
   .perdido__rutas a {
     display: block;
     padding: 0.85rem 0;
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.15rem;
     transition: padding-left 0.2s, color 0.2s;
   }

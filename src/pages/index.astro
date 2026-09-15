@@ -1,15 +1,29 @@
 ---
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
-import { activos, categorias, masVendidos, porCategoria } from '../data/productos.js';
+import ApiCaida from '../components/ApiCaida.astro';
+import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
 import { tienda, waLink } from '../data/tienda.js';
 
+// Una sola llamada trae el catálogo y de ahí salen todas las secciones:
+// es más rápido que pedirle a la API una lista por bloque.
+let productos = [];
+let categorias = [];
+let fallo = null;
+try {
+  [productos, categorias] = await Promise.all([obtenerProductos(), obtenerCategorias()]);
+} catch (error) {
+  fallo = error;
+}
+
+const deCategoria = (slug) => productos.filter((p) => p.categoria === slug);
+
 // Portada de venta: banner, beneficios y productos. Nada más.
-const vendidos = masVendidos().slice(0, 8);
-const ofertas = activos().filter((p) => p.precioAntes);
-const henna = porCategoria('cosmetica-capilar').slice(0, 4);
-const despensa = porCategoria('superalimentos').slice(0, 4);
-const aceites = porCategoria('aceites').slice(0, 4);
+const vendidos = productos.filter((p) => p.masVendido).slice(0, 8);
+const ofertas = productos.filter((p) => p.precioAntes);
+const henna = deCategoria('cosmetica-capilar').slice(0, 4);
+const despensa = deCategoria('superalimentos').slice(0, 4);
+const aceites = deCategoria('aceites').slice(0, 4);
 
 const beneficios = [
   { t: 'Envíos a todo el Perú', d: 'Delivery el mismo día en Lima' },
@@ -20,6 +34,9 @@ const beneficios = [
 ---
 
 <Base activo="inicio">
+  {fallo && <ApiCaida error={fallo} />}
+  {!fallo && (
+  <>
   <!-- ── Banner ──────────────────────────────────────────────── -->
   <section class="banner">
     <picture class="banner__foto">
@@ -42,7 +59,7 @@ const beneficios = [
         <p class="banner__kicker">Tienda de productos naturales · Lima</p>
         <h1 class="banner__titulo">Henna, suplementos,<br />aceites y superalimentos</h1>
         <p class="banner__plomo">
-          {activos().length} productos con su origen anotado. Pides por aquí, lo cerramos por WhatsApp.
+          {productos.length} productos con su origen anotado. Pides por aquí, lo cerramos por WhatsApp.
         </p>
         <div class="banner__acciones">
           <a href="/catalogo" class="btn">Ver el catálogo</a>
@@ -78,7 +95,7 @@ const beneficios = [
         <a href={`/catalogo?categoria=${c.slug}`} class="depto">
           <span class="indice">{String(i + 1).padStart(2, '0')}</span>
           <span class="depto__nombre">{c.nombre}</span>
-          <span class="depto__n">{porCategoria(c.slug).length} productos</span>
+          <span class="depto__n">{deCategoria(c.slug).length} productos</span>
         </a>
       ))
     }
@@ -118,7 +135,7 @@ const beneficios = [
         {ofertas.map((p) => <ProductoCard producto={p} />)}
         <a href="/catalogo" class="celda-cta">
           <span class="celda-cta__k">¿Buscas otra cosa?</span>
-          <span class="celda-cta__t">Los {activos().length} productos, con filtros por precio y departamento</span>
+          <span class="celda-cta__t">Los {productos.length} productos, con filtros por precio y departamento</span>
           <span class="enlace-mas">Ir al catálogo</span>
         </a>
       </div>
@@ -194,6 +211,8 @@ const beneficios = [
       >
     </div>
   </section>
+  </>
+  )}
 </Base>
 
 <style>
@@ -244,9 +263,8 @@ const beneficios = [
   }
 
   .banner__titulo {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: clamp(2.1rem, 4.4vw, 3.5rem);
-    font-variation-settings: 'SOFT' 40, 'WONK' 1;
     color: var(--salvia-osc);
     margin-bottom: 1rem;
   }
@@ -286,7 +304,7 @@ const beneficios = [
   }
 
   .beneficio__t {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.02rem;
     font-weight: 600;
     margin: 0 0 0.15rem;
@@ -320,7 +338,7 @@ const beneficios = [
   }
 
   .depto__nombre {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.2rem;
     font-weight: 600;
   }
@@ -347,6 +365,7 @@ const beneficios = [
     justify-content: center;
     gap: 0.6rem;
     border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
     padding: 1.6rem;
     background: transparent;
     transition: border-color 0.2s;
@@ -365,15 +384,16 @@ const beneficios = [
   }
 
   .celda-cta__t {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.2rem;
     line-height: 1.25;
   }
 
   /* Cierre */
+  /* Cierre en café: corta el verde y hace que el último llamado destaque. */
   .cierre {
-    background: var(--salvia);
-    color: #e7eee9;
+    background: var(--cafe);
+    color: #e8e4e2;
     padding-block: clamp(2.5rem, 5vw, 3.5rem);
   }
 
@@ -387,7 +407,11 @@ const beneficios = [
 
   .cierre p {
     margin: 0.5rem 0 0;
-    color: #cfdcd5;
+    color: #b9b2af;
+  }
+
+  .cierre .titulo {
+    color: #f4f1e8;
   }
 
   /* Responsive */

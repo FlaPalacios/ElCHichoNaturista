@@ -1,10 +1,15 @@
 ---
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
-import { masVendidos } from '../data/productos.js';
+import { obtenerProductos } from '../lib/api.js';
 import { tienda } from '../data/tienda.js';
 
-const sugerencias = masVendidos().slice(0, 3);
+let sugerencias = [];
+try {
+  sugerencias = (await obtenerProductos({ masVendido: true })).slice(0, 3);
+} catch {
+  sugerencias = [];
+}
 ---
 
 <Base title="Carrito" description="Revisa tu pedido antes de confirmarlo por WhatsApp." activo="carrito">
@@ -190,7 +195,7 @@ const sugerencias = masVendidos().slice(0, 3);
   }
 
   .fila__nombre {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.14rem;
     font-weight: 600;
   }
@@ -230,6 +235,8 @@ const sugerencias = masVendidos().slice(0, 3);
     display: inline-flex;
     align-items: center;
     border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    overflow: hidden;
   }
 
   .paso button {
@@ -335,7 +342,7 @@ const sugerencias = masVendidos().slice(0, 3);
     border-top: 1px solid var(--linea-fuerte);
     margin-top: 0.6rem;
     padding-top: 0.7rem !important;
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.3rem !important;
     font-weight: 600;
   }
@@ -375,7 +382,7 @@ const sugerencias = masVendidos().slice(0, 3);
   }
 
   .vacio__t {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.8rem;
     margin-bottom: 0.3rem;
   }

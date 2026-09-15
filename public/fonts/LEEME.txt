@@ -1,0 +1,21 @@
+Tipografías de El Chico Naturista
+=================================
+
+Se sirven desde este directorio para no depender de Google ni de Fontshare en
+tiempo de carga. Las declaraciones @font-face están en src/styles/global.css.
+
+Hind — titulares
+  Indian Type Foundry · https://fonts.google.com/specimen/Hind
+  Licencia: SIL Open Font License 1.1 (permite uso comercial y self-hosting).
+  Pesos incluidos: 400, 500, 600, 700 (subset latin).
+  No tiene versión variable: Google la sirve como pesos estáticos.
+
+Amulya — texto
+  Indian Type Foundry · https://www.fontshare.com/fonts/amulya
+  Licencia: Fontshare / ITF. Revísala en la página de la fuente antes de
+  publicar el sitio.
+  Pesos incluidos: 400, 500, 700.
+  El CDN de Fontshare entrega pesos estáticos, no el archivo variable.
+
+Para actualizar o añadir pesos, descarga el .woff2 correspondiente, guárdalo
+aquí como <familia>-<peso>.woff2 y agrega su @font-face en global.css.

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@astrojs/alpinejs": "^0.4.9",
+    "@astrojs/node": "^9.5.5",
     "alpinejs": "^3.14.9",
     "astro": "^5.13.0"
   }

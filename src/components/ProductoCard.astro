@@ -1,9 +1,7 @@
 ---
 import Etiqueta from './Etiqueta.astro';
-import { categoriaPorSlug } from '../data/productos.js';
 
 const { producto, indice = null, alto = false } = Astro.props;
-const cat = categoriaPorSlug(producto.categoria);
 const oferta = Boolean(producto.precioAntes);
 const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
 const paraCarrito = {
@@ -26,7 +24,7 @@ const paraCarrito = {
   </a>
 
   <div class="ficha__cuerpo">
-    <p class="ficha__cat">{cat?.nombre}</p>
+    <p class="ficha__cat">{producto.categoriaNombre}</p>
     <h3 class="ficha__nombre">
       <a href={`/producto/${producto.slug}`}>{producto.nombre}</a>
     </h3>
@@ -76,7 +74,7 @@ const paraCarrito = {
     position: absolute;
     top: 0.6rem;
     left: 0.7rem;
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 0.78rem;
     letter-spacing: 0.1em;
     color: var(--tinta-suave);
@@ -88,6 +86,7 @@ const paraCarrito = {
     position: absolute;
     top: 0.6rem;
     right: 0.7rem;
+    border-radius: 3px;
     background: var(--henna);
     color: #fff;
     font-size: 0.68rem;
@@ -100,6 +99,7 @@ const paraCarrito = {
     position: absolute;
     bottom: 0.6rem;
     left: 0.7rem;
+    border-radius: 3px;
     background: rgba(247, 247, 247, 0.9);
     border: 1px solid var(--linea-fuerte);
     font-size: 0.66rem;
@@ -161,20 +161,22 @@ const paraCarrito = {
   }
 
   .ficha__agregar {
-    background: none;
-    border: 1px solid var(--salvia);
-    color: var(--salvia);
+    background: var(--cafe);
+    border: 1px solid var(--cafe);
+    border-radius: var(--radio);
+    color: #f4f1e8;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     padding: 0.5rem 0.8rem;
     white-space: nowrap;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
   }
 
   .ficha__agregar:hover {
     background: var(--salvia);
+    border-color: var(--salvia);
     color: #f4f1e8;
   }
 </style>

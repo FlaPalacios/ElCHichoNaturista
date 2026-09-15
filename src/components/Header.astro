@@ -1,9 +1,22 @@
 ---
-import { categorias, masVendidos } from '../data/productos.js';
+import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
 import { tienda } from '../data/tienda.js';
 
 const { activo = '' } = Astro.props;
-const destacadoMenu = masVendidos().slice(0, 3);
+
+// Si la API no responde, el encabezado se muestra igual pero sin el mega-menú:
+// nunca debe tumbar la página entera.
+let categorias = [];
+let destacadoMenu = [];
+try {
+  [categorias, destacadoMenu] = await Promise.all([
+    obtenerCategorias(),
+    obtenerProductos({ masVendido: true }).then((lista) => lista.slice(0, 3)),
+  ]);
+} catch {
+  categorias = [];
+  destacadoMenu = [];
+}
 ---
 
 <div class="cintillo">
@@ -193,7 +206,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
   .marca__texto {
     display: flex;
     flex-direction: column;
-    font-family: var(--serif);
+    font-family: var(--titular);
     line-height: 1;
     color: var(--salvia);
   }
@@ -210,7 +223,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
     letter-spacing: 0.3em;
     text-transform: uppercase;
     color: var(--tinta-suave);
-    font-family: var(--sans);
+    font-family: var(--texto);
     margin-top: 0.3rem;
   }
 
@@ -282,7 +295,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
   }
 
   .mega__titulo {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1.14rem;
     font-weight: 600;
     color: var(--salvia);
@@ -336,7 +349,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
   }
 
   .mega__precio {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-weight: 600;
     white-space: nowrap;
   }
@@ -355,6 +368,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
     height: 42px;
     background: none;
     border: 1px solid transparent;
+    border-radius: var(--radio);
     color: var(--tinta);
     transition: border-color 0.2s, color 0.2s;
   }
@@ -373,7 +387,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
     display: grid;
     place-items: center;
     padding-inline: 4px;
-    background: var(--henna);
+    background: var(--cafe);
     color: #fff;
     font-size: 0.66rem;
     font-weight: 700;
@@ -399,7 +413,7 @@ const destacadoMenu = masVendidos().slice(0, 3);
     padding: 0.7rem 0.9rem;
     border: 1px solid var(--linea-fuerte);
     background: #fff;
-    border-radius: 0;
+    border-radius: var(--radio);
   }
 
   .buscador__cerrar {

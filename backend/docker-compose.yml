@@ -1,0 +1,27 @@
+# PostgreSQL para desarrollo local.
+#   docker compose up -d      levanta la base
+#   docker compose down       la apaga (los datos se conservan)
+#   docker compose down -v    la apaga y borra los datos
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ecn-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ecn
+      POSTGRES_PASSWORD: ecn
+      POSTGRES_DB: elchiconaturista
+      TZ: America/Lima
+    ports:
+      - "5432:5432"
+    volumes:
+      - datos_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecn -d elchiconaturista"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  datos_postgres:

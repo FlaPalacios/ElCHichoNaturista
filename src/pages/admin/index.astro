@@ -1,9 +1,19 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { activos, categorias, categoriaPorSlug, productos } from '../../data/productos.js';
+import ApiCaida from '../../components/ApiCaida.astro';
+import { obtenerCategorias, obtenerProductos } from '../../lib/api.js';
 
-// Maqueta del panel. Sin backend todavía: los números salen de los datos de
-// prueba y el acceso no valida nada (eso llega con JWT en la etapa 3).
+// El inventario ya sale de la base de datos. Lo que sigue siendo maqueta es el
+// acceso (sin JWT) y los pedidos: eso llega con los endpoints de la etapa 6.
+let productos = [];
+let categorias = [];
+let fallo = null;
+try {
+  [productos, categorias] = await Promise.all([obtenerProductos(), obtenerCategorias()]);
+} catch (error) {
+  fallo = error;
+}
+
 const lista = [...productos].sort((a, b) => a.stock - b.stock);
 const valorInventario = productos.reduce((n, p) => n + p.precio * p.stock, 0);
 const stockBajo = productos.filter((p) => p.stock <= 12);
@@ -16,7 +26,8 @@ const pedidosEjemplo = [
 ---
 
 <Base title="Panel de administración" description="Panel interno de El Chico Naturista.">
-  <div class="env admin" x-data="{ dentro: false, filtro: '' }">
+  {fallo && <ApiCaida error={fallo} />}
+  <div class="env admin" x-data="{ dentro: false, filtro: '' }" hidden={Boolean(fallo)}>
     <!-- Acceso (maqueta) -->
     <section class="acceso" x-show="!dentro">
       <p class="kicker">Área interna</p>
@@ -36,8 +47,8 @@ const pedidosEjemplo = [
       </form>
 
       <p class="maqueta">
-        <strong>Maqueta de la etapa 1.</strong> Este formulario todavía no valida nada: la
-        autenticación con JWT y los datos reales llegan en las etapas 3 y 6.
+        <strong>Acceso de maqueta.</strong> Este formulario todavía no valida nada: la
+        autenticación con JWT llega en la etapa 6.
       </p>
     </section>
 
@@ -52,14 +63,15 @@ const pedidosEjemplo = [
       </header>
 
       <p class="maqueta maqueta--barra">
-        Datos de prueba. Cuando exista la API, estas cifras salen de la base de datos.
+        El inventario y las cifras salen de la base de datos real. Los pedidos de abajo
+        siguen siendo de ejemplo: sus endpoints llegan en la etapa 5.
       </p>
 
       <div class="metricas">
         <article class="metrica">
-          <p class="metrica__n">{activos().length}</p>
+          <p class="metrica__n">{productos.length}</p>
           <p class="metrica__e">Productos activos</p>
-          <p class="metrica__d">de {productos.length} en el catálogo</p>
+          <p class="metrica__d">en venta ahora mismo</p>
         </article>
         <article class="metrica">
           <p class="metrica__n">{categorias.length}</p>
@@ -159,7 +171,7 @@ const pedidosEjemplo = [
                     <a href={`/producto/${p.slug}`}>{p.nombre}</a>
                     <span class="tabla__sub">{p.presentacion}</span>
                   </td>
-                  <td>{categoriaPorSlug(p.categoria)?.nombre}</td>
+                  <td>{p.categoriaNombre}</td>
                   <td>S/ {p.precio.toFixed(2)}</td>
                   <td>
                     <span class={p.stock <= 12 ? 'stock stock--bajo' : 'stock'}>{p.stock}</span>
@@ -180,6 +192,7 @@ const pedidosEjemplo = [
         <p class="kicker">Lo que falta en este panel</p>
         <ul>
           <li>Crear, editar y desactivar productos (etapa 6)</li>
+          <li>Ver también los productos inactivos: la API pública solo devuelve los activos</li>
           <li>Cambiar el estado de un pedido y avisar al cliente</li>
           <li>Subir fotos reales de producto</li>
           <li>Login con JWT y sesión persistente</li>
@@ -246,6 +259,7 @@ const pedidosEjemplo = [
   .salir {
     background: none;
     border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
     padding: 0.5rem 0.9rem;
     font-size: 0.72rem;
     font-weight: 700;
@@ -272,7 +286,7 @@ const pedidosEjemplo = [
   }
 
   .metrica__n {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 2.3rem;
     font-weight: 600;
     line-height: 1;
@@ -308,7 +322,7 @@ const pedidosEjemplo = [
     padding: 0.45rem 0.7rem;
     border: 1px solid var(--linea-fuerte);
     background: #fff;
-    border-radius: 0;
+    border-radius: var(--radio);
     min-width: 220px;
   }
 
@@ -356,7 +370,7 @@ const pedidosEjemplo = [
   }
 
   .stock {
-    font-family: var(--serif);
+    font-family: var(--titular);
     font-size: 1rem;
     font-weight: 600;
   }
@@ -372,6 +386,7 @@ const pedidosEjemplo = [
     text-transform: uppercase;
     padding: 0.2rem 0.5rem;
     border: 1px solid currentColor;
+    border-radius: 3px;
   }
 
   .estado--activo,
