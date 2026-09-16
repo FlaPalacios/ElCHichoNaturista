@@ -38,21 +38,51 @@ const beneficios = [
   {!fallo && (
   <>
   <!-- ── Banner ──────────────────────────────────────────────── -->
-  <section class="banner">
-    <picture class="banner__foto">
-      <source type="image/webp" media="(max-width: 700px)" srcset="/hero-760.webp" />
-      <source type="image/webp" media="(max-width: 1200px)" srcset="/hero-1200.webp" />
-      <source type="image/webp" srcset="/hero-1672.webp" />
-      <img
-        src="/hero.jpg"
-        alt="Mesa con productos naturales: tintes de henna, cápsulas, aceites esenciales y superalimentos"
-        width="1672"
-        height="941"
-        fetchpriority="high"
-      />
-    </picture>
+  <!-- Carrusel de 3 fotos; de momento las 3 son la misma imagen. -->
+  <section
+    class="banner"
+    x-data={`{
+      slide: 0, n: 3, auto: null,
+      ir(k) { this.slide = (k + this.n) % this.n; this.reiniciar() },
+      reiniciar() { clearInterval(this.auto); this.auto = setInterval(() => this.slide = (this.slide + 1) % this.n, 6000) }
+    }`}
+    x-init="reiniciar()"
+    @mouseenter="clearInterval(auto)"
+    @mouseleave="reiniciar()"
+    aria-roledescription="carrusel"
+    aria-label="Fotos de productos naturales"
+  >
+    {
+      [0, 1, 2].map((i) => (
+        <picture class="banner__foto" x-show={`slide === ${i}`} x-transition.opacity.duration.500ms>
+          <source type="image/webp" media="(max-width: 700px)" srcset="/hero-760.webp" />
+          <source type="image/webp" media="(max-width: 1200px)" srcset="/hero-1200.webp" />
+          <source type="image/webp" srcset="/hero-1672.webp" />
+          <img
+            src="/hero.jpg"
+            alt="Mesa con productos naturales: tintes de henna, cápsulas, aceites esenciales y superalimentos"
+            width="1672"
+            height="941"
+            fetchpriority={i === 0 ? 'high' : 'low'}
+            loading={i === 0 ? 'eager' : 'lazy'}
+          />
+        </picture>
+      ))
+    }
 
     <div class="banner__velo"></div>
+
+    <div class="banner__control">
+      <button @click="ir(slide - 1)" aria-label="Foto anterior">←</button>
+      <div class="banner__puntos">
+        {
+          [0, 1, 2].map((i) => (
+            <button @click={`ir(${i})`} :class={`slide === ${i} && 'es-actual'`} aria-label={`Ir a la foto ${i + 1}`} />
+          ))
+        }
+      </div>
+      <button @click="ir(slide + 1)" aria-label="Foto siguiente">→</button>
+    </div>
 
     <div class="env banner__env">
       <div class="banner__texto">
@@ -93,9 +123,8 @@ const beneficios = [
     {
       categorias.map((c, i) => (
         <a href={`/catalogo?categoria=${c.slug}`} class="depto">
-          <span class="indice">{String(i + 1).padStart(2, '0')}</span>
+          <span class="depto__insignia" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
           <span class="depto__nombre">{c.nombre}</span>
-          <span class="depto__n">{deCategoria(c.slug).length} productos</span>
         </a>
       ))
     }
@@ -106,7 +135,6 @@ const beneficios = [
     <div class="env">
       <div class="cabecera-seccion">
         <div>
-          <p class="kicker">El estante que más se vacía</p>
           <h2 class="titulo">Los más vendidos</h2>
         </div>
         <span class="cabecera-seccion__linea"></span>
@@ -124,7 +152,6 @@ const beneficios = [
     <div class="env">
       <div class="cabecera-seccion">
         <div>
-          <p class="kicker">Precio rebajado esta semana</p>
           <h2 class="titulo">En oferta</h2>
         </div>
         <span class="cabecera-seccion__linea"></span>
@@ -142,75 +169,11 @@ const beneficios = [
     </div>
   </section>
 
-  <!-- ── Henna Colors ────────────────────────────────────────── -->
-  <section class="seccion">
-    <div class="env">
-      <div class="cabecera-seccion">
-        <div>
-          <p class="kicker">Línea propia · sin amoniaco ni PPD</p>
-          <h2 class="titulo">Henna Colors</h2>
-        </div>
-        <span class="cabecera-seccion__linea"></span>
-        <a href="/catalogo?categoria=cosmetica-capilar" class="enlace-mas">Ver la línea</a>
-      </div>
 
-      <div class="rejilla">
-        {henna.map((p) => <ProductoCard producto={p} />)}
-      </div>
-    </div>
-  </section>
 
-  <!-- ── Aceites ─────────────────────────────────────────────── -->
-  <section class="seccion seccion--papel">
-    <div class="env">
-      <div class="cabecera-seccion">
-        <div>
-          <p class="kicker">Destilados y prensados en frío</p>
-          <h2 class="titulo">Aceites esenciales</h2>
-        </div>
-        <span class="cabecera-seccion__linea"></span>
-        <a href="/catalogo?categoria=aceites" class="enlace-mas">Ver todos</a>
-      </div>
 
-      <div class="rejilla">
-        {aceites.map((p) => <ProductoCard producto={p} />)}
-      </div>
-    </div>
-  </section>
 
-  <!-- ── Superalimentos ──────────────────────────────────────── -->
-  <section class="seccion">
-    <div class="env">
-      <div class="cabecera-seccion">
-        <div>
-          <p class="kicker">Cacao, harinas andinas y endulzantes</p>
-          <h2 class="titulo">Superalimentos</h2>
-        </div>
-        <span class="cabecera-seccion__linea"></span>
-        <a href="/catalogo?categoria=superalimentos" class="enlace-mas">Ver todos</a>
-      </div>
 
-      <div class="rejilla">
-        {despensa.map((p) => <ProductoCard producto={p} />)}
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Cierre ──────────────────────────────────────────────── -->
-  <section class="cierre">
-    <div class="env cierre__env">
-      <div>
-        <h2 class="titulo">¿No sabes cuál te conviene?</h2>
-        <p>Escríbenos y te recomendamos según lo que buscas. Atendemos {tienda.horario.toLowerCase()}.</p>
-      </div>
-      <a
-        href={waLink('Hola, quiero una recomendación de productos.')}
-        target="_blank"
-        rel="noopener"
-        class="btn btn--claro">Escribir por WhatsApp</a
-      >
-    </div>
-  </section>
   </>
   )}
 </Base>
@@ -219,7 +182,8 @@ const beneficios = [
   /* Banner */
   .banner {
     position: relative;
-    min-height: clamp(420px, 58vw, 620px);
+    /* Más horizontal que antes: las categorías quedan visibles sin bajar mucho. */
+    min-height: clamp(300px, 34vw, 420px);
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -282,6 +246,48 @@ const beneficios = [
     gap: 0.8rem;
   }
 
+  .banner__control {
+    position: absolute;
+    right: var(--gutter);
+    bottom: 1.1rem;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .banner__control > button {
+    background: rgba(33, 30, 30, 0.4);
+    border: 1px solid rgba(244, 241, 232, 0.5);
+    color: #f4f1e8;
+    width: 34px;
+    height: 30px;
+    border-radius: var(--radio);
+    transition: background 0.2s;
+  }
+
+  .banner__control > button:hover {
+    background: rgba(33, 30, 30, 0.7);
+  }
+
+  .banner__puntos {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .banner__puntos button {
+    width: 22px;
+    height: 3px;
+    padding: 0;
+    border: none;
+    background: rgba(244, 241, 232, 0.5);
+    transition: background 0.25s;
+  }
+
+  .banner__puntos button.es-actual {
+    background: #f4f1e8;
+  }
+
   /* Beneficios */
   .beneficios {
     background: var(--salvia);
@@ -316,40 +322,55 @@ const beneficios = [
     margin: 0;
   }
 
-  /* Departamentos */
+  /* Departamentos: botones redondos, minimalistas. La insignia circular
+     hoy lleva el número; cuando haya fotos de categoría, se reemplaza por
+     una imagen dentro del mismo círculo (overflow: hidden ya preparado). */
   .deptos {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
+    gap: 1rem;
     padding-block: 2.2rem 0.5rem;
   }
 
   .depto {
     display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    border-top: 2px solid var(--salvia);
-    padding-top: 0.8rem;
-    transition: padding-left 0.2s;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.6rem 1.1rem 0.6rem 0.6rem;
+    border: 2px solid var(--linea-fuerte);
+    border-radius: 999px;
+    transition: border-color 0.2s, background 0.2s;
   }
 
   .depto:hover {
-    padding-left: 0.4rem;
+    border-color: var(--salvia);
+    background: var(--papel);
+  }
+
+  .depto__insignia {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: var(--salvia);
+    color: #f4f1e8;
+    font-family: var(--titular);
+    font-weight: 700;
+    font-size: 0.9rem;
   }
 
   .depto__nombre {
     font-family: var(--titular);
-    font-size: 1.2rem;
-    font-weight: 600;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--cafe);
   }
 
   .depto:hover .depto__nombre {
     color: var(--salvia);
-  }
-
-  .depto__n {
-    font-size: 0.78rem;
-    color: var(--tinta-suave);
   }
 
   /* Rejilla de productos */
@@ -364,7 +385,7 @@ const beneficios = [
     flex-direction: column;
     justify-content: center;
     gap: 0.6rem;
-    border: 1px solid var(--linea-fuerte);
+    border: 2px solid var(--linea-fuerte);
     border-radius: var(--radio);
     padding: 1.6rem;
     background: transparent;
@@ -390,10 +411,9 @@ const beneficios = [
   }
 
   /* Cierre */
-  /* Cierre en café: corta el verde y hace que el último llamado destaque. */
   .cierre {
-    background: var(--cafe);
-    color: #e8e4e2;
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.75);
     padding-block: clamp(2.5rem, 5vw, 3.5rem);
   }
 
@@ -407,11 +427,11 @@ const beneficios = [
 
   .cierre p {
     margin: 0.5rem 0 0;
-    color: #b9b2af;
+    color: rgba(33, 30, 30, 0.65);
   }
 
   .cierre .titulo {
-    color: #f4f1e8;
+    color: var(--cafe);
   }
 
   /* Responsive */

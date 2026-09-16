@@ -38,6 +38,14 @@ class EstadoPedido(str, enum.Enum):
     cancelado = "cancelado"
 
 
+class MetodoPago(str, enum.Enum):
+    """Cómo piensa pagar el cliente, coordinado luego por el chat."""
+
+    yape = "yape"
+    transferencia = "transferencia"
+    contraentrega = "contraentrega"
+
+
 class Categoria(Base):
     __tablename__ = "categorias"
 
@@ -142,10 +150,38 @@ class Pedido(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+    # Datos del checkout (migración 0003). Nullable porque solo aplican a
+    # entrega por delivery (distrito, referencia) o son opcionales (correo,
+    # nota); metodo_pago se exige en la API, no acá.
+    distrito: Mapped[str | None] = mapped_column(String(100))
+    referencia: Mapped[str | None] = mapped_column(Text)
+    email_contacto: Mapped[str | None] = mapped_column(String(150))
+    nota: Mapped[str | None] = mapped_column(Text)
+    metodo_pago: Mapped[MetodoPago | None] = mapped_column(
+        Enum(MetodoPago, name="metodo_pago_pedido", native_enum=True, validate_strings=True)
+    )
+
     cliente: Mapped[Cliente | None] = relationship(back_populates="pedidos")
     items: Mapped[list["PedidoItem"]] = relationship(
         back_populates="pedido", cascade="all, delete-orphan"
     )
+
+    @property
+    def entrega(self) -> str:
+        """'tienda' si no hay dirección de envío, 'delivery' si la hay."""
+        return "tienda" if self.direccion_envio is None else "delivery"
+
+    @property
+    def subtotal(self) -> Decimal:
+        """Suma de los items. Nunca se guarda: se calcula siempre desde ellos."""
+        return sum(
+            (item.cantidad * item.precio_unitario for item in self.items), Decimal("0.00")
+        )
+
+    @property
+    def envio(self) -> Decimal:
+        """`total` es la única cifra persistida; el envío es la diferencia."""
+        return self.total - self.subtotal
 
     def __repr__(self) -> str:
         return f"<Pedido {self.numero_pedido}>"

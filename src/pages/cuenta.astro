@@ -82,6 +82,11 @@ import { tienda, waLink } from '../data/tienda.js';
         <p class="ultimo__fecha">
           <span x-text="$store.pedido.ultimo ? new Date($store.pedido.ultimo.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : ''"></span>
           · <span class="ultimo__estado" x-text="$store.pedido.ultimo?.estado"></span>
+          <span
+            class="ultimo__pendiente"
+            x-show="$store.pedido.ultimo?.sincronizado === false"
+            title="Todavía no lo confirmamos con nuestro sistema"
+          >· guardado en este dispositivo</span>
         </p>
 
         <ul class="ultimo__items">
@@ -112,7 +117,7 @@ import { tienda, waLink } from '../data/tienda.js';
           Todavía no hay pedidos en este navegador. Cuando confirmes uno, aparecerá acá con su
           número para hacerle seguimiento.
         </p>
-        <a href="/catalogo" class="btn btn--linea btn--bloque">Ver catálogo</a>
+        <a href="/catalogo" class="btn btn--claro btn--bloque">Ver catálogo</a>
       </section>
 
       <section class="ayuda">
@@ -212,22 +217,27 @@ import { tienda, waLink } from '../data/tienda.js';
   }
 
   .ultimo {
-    background: var(--papel);
-    border: 1px solid var(--linea-fuerte);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
+    border: 1px solid rgba(33, 30, 30, 0.12);
     padding: 1.4rem 1.5rem;
+  }
+
+  .ultimo .kicker {
+    color: var(--salvia-osc);
   }
 
   .ultimo__numero {
     font-family: var(--titular);
     font-size: 1.55rem;
     font-weight: 600;
-    color: var(--salvia);
+    color: var(--cafe);
     margin: 0.5rem 0 0.2rem;
   }
 
   .ultimo__fecha {
     font-size: 0.8rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin-bottom: 1rem;
   }
 
@@ -235,7 +245,13 @@ import { tienda, waLink } from '../data/tienda.js';
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
-    color: var(--henna);
+    font-weight: 700;
+    color: var(--cafe);
+  }
+
+  .ultimo__pendiente {
+    font-size: 0.7rem;
+    color: rgba(33, 30, 30, 0.55);
   }
 
   .ultimo__items {
@@ -250,7 +266,7 @@ import { tienda, waLink } from '../data/tienda.js';
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;
-    border-bottom: 1px dotted var(--linea-fuerte);
+    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
   }
 
   .ultimo__total {
@@ -258,12 +274,13 @@ import { tienda, waLink } from '../data/tienda.js';
     justify-content: space-between;
     font-family: var(--titular);
     font-size: 1.1rem;
+    color: var(--cafe);
     margin-bottom: 1.1rem;
   }
 
   .ultimo__nada {
     font-size: 0.9rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin-block: 0.8rem 1.2rem;
   }
 

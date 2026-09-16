@@ -1,5 +1,6 @@
 """Configuración del backend. Todo sale de variables de entorno o de .env."""
 
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,14 @@ class Ajustes(BaseSettings):
         "http://localhost:4321",
         "http://127.0.0.1:4321",
     ]
+
+    # Regla de negocio duplicada intencionalmente con el frontend
+    # (src/data/tienda.js → envioGratisDesde, src/alpine.js →
+    # COSTO_ENVIO_LIMA). El backend es quien manda al crear un pedido: nunca
+    # se confía en el envío/total que mande el cliente. Si se centraliza
+    # algún día, que sea acá y se sirva al frontend por API.
+    envio_costo_lima: Decimal = Decimal("12.00")
+    envio_gratis_desde: Decimal = Decimal("120.00")
 
 
 @lru_cache

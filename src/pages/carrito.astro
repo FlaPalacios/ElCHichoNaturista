@@ -52,7 +52,20 @@ try {
                   <span x-text="item.presentacion"></span> ·
                   <span x-text="$store.carrito.soles(item.precio)"></span> c/u
                 </p>
-                <button class="fila__quitar" @click="$store.carrito.quitar(item.id)">Quitar</button>
+                <button
+                  class="fila__quitar"
+                  @click="$store.carrito.quitar(item.id)"
+                  aria-label="Quitar del carrito"
+                  title="Quitar"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                    <path d="M4 7h16"></path>
+                    <path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7"></path>
+                    <path d="M6 7l.8 12.2c.05.98.86 1.8 1.84 1.8h6.72c.98 0 1.79-.82 1.84-1.8L18 7"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                  </svg>
+                </button>
               </div>
             </div>
 
@@ -211,19 +224,20 @@ try {
   }
 
   .fila__quitar {
+    display: inline-flex;
+    margin-top: 0.5rem;
+    margin-left: -0.3rem;
     background: none;
     border: none;
-    padding: 0;
-    font-size: 0.7rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    padding: 0.3rem;
     color: var(--tinta-suave);
-    border-bottom: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    transition: color 0.2s, background 0.2s;
   }
 
   .fila__quitar:hover {
-    color: var(--henna);
-    border-color: var(--henna);
+    color: var(--rojo);
+    background: rgba(192, 57, 43, 0.08);
   }
 
   .fila__cant {
@@ -310,16 +324,18 @@ try {
   .resumen {
     position: sticky;
     top: 120px;
-    background: var(--papel);
-    border: 1px solid var(--linea-fuerte);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
+    border: 1px solid rgba(33, 30, 30, 0.12);
     padding: 1.5rem;
   }
 
   .resumen__t {
     font-size: 1.3rem;
+    color: var(--cafe);
     margin-bottom: 1.1rem;
     padding-bottom: 0.7rem;
-    border-bottom: 1px solid var(--linea-fuerte);
+    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
   }
 
   .cuentas {
@@ -339,29 +355,30 @@ try {
   }
 
   .cuentas__total {
-    border-top: 1px solid var(--linea-fuerte);
+    border-top: 1px solid rgba(33, 30, 30, 0.18);
     margin-top: 0.6rem;
     padding-top: 0.7rem !important;
     font-family: var(--titular);
     font-size: 1.3rem !important;
     font-weight: 600;
+    color: var(--cafe);
   }
 
   .barra-envio {
     margin-bottom: 1.2rem;
     font-size: 0.8rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.6);
   }
 
   .barra-envio__riel {
     height: 3px;
-    background: var(--linea-fuerte);
+    background: rgba(33, 30, 30, 0.18);
     margin-bottom: 0.5rem;
   }
 
   .barra-envio__lleno {
     height: 3px;
-    background: var(--jade);
+    background: var(--salvia-osc);
     transition: width 0.4s;
   }
 
@@ -369,9 +386,13 @@ try {
     margin: 0;
   }
 
+  .barra-envio strong {
+    color: var(--cafe);
+  }
+
   .resumen__nota {
     font-size: 0.78rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin: 0.9rem 0 0;
   }
 

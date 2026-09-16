@@ -1,4 +1,5 @@
 import { tienda } from './data/tienda.js';
+import { crearPedido } from './lib/api.js';
 
 const CLAVE = 'ecn.carrito.v1';
 const CLAVE_PEDIDOS = 'ecn.pedidos.v1';
@@ -139,15 +140,19 @@ export default (Alpine) => {
     },
   });
 
-  // Estado del checkout: genera el número de pedido y arma el mensaje de
-  // WhatsApp. En la etapa 5 el número lo devolverá la API.
+  // Estado del checkout: registra el pedido en el backend y arma el mensaje
+  // de WhatsApp. Si la API no responde, genera el número localmente como
+  // respaldo — nunca se pierde una venta por una caída del servidor.
   Alpine.store('pedido', {
     ultimo: null,
+    sincronizando: false,
 
     init() {
       this.ultimo = leer(CLAVE_PEDIDOS, null);
     },
 
+    // Se usa solo como respaldo si crearPedido() falla; en el camino normal
+    // el número lo pone la API.
     generarNumero() {
       const d = new Date();
       const yy = String(d.getFullYear()).slice(2);
@@ -157,9 +162,30 @@ export default (Alpine) => {
       return `ECN-${yy}${mm}${dd}-${azar}`;
     },
 
-    registrar(datos, carrito) {
-      const pedido = {
-        numero: this.generarNumero(),
+    // Cuerpo del POST /pedidos, en snake_case tal como lo espera la API.
+    _payloadApi(datos, carrito) {
+      const esDelivery = datos.entrega === 'delivery';
+      return {
+        nombre_contacto: datos.nombre,
+        telefono_contacto: datos.telefono,
+        correo: datos.correo || null,
+        entrega: datos.entrega,
+        direccion: esDelivery ? datos.direccion : null,
+        distrito: esDelivery ? datos.distrito : null,
+        referencia: esDelivery ? datos.referencia || null : null,
+        metodo_pago: datos.pago,
+        nota: datos.nota || null,
+        items: carrito.items.map((i) => ({ producto_id: i.id, cantidad: i.cantidad })),
+      };
+    },
+
+    // Pedido de respaldo si la API no responde. Corrige un detalle que tenía
+    // el cálculo anterior: en recojo en tienda el envío siempre es 0, sin
+    // importar el subtotal.
+    _pedidoLocal(datos, carrito, numero) {
+      const envio = datos.entrega === 'tienda' ? 0 : carrito.envio;
+      return {
+        numero,
         fecha: new Date().toISOString(),
         estado: 'pendiente',
         cliente: datos,
@@ -170,12 +196,39 @@ export default (Alpine) => {
           precio_unitario: i.precio,
         })),
         subtotal: carrito.subtotal,
-        envio: carrito.envio,
-        total: carrito.total,
+        envio,
+        total: carrito.subtotal + envio,
+        sincronizado: false,
       };
-      this.ultimo = pedido;
-      guardar(CLAVE_PEDIDOS, pedido);
-      return pedido;
+    },
+
+    async registrar(datos, carrito) {
+      this.sincronizando = true;
+      const local = this._pedidoLocal(datos, carrito, this.generarNumero());
+      try {
+        const api = await crearPedido(this._payloadApi(datos, carrito));
+        const pedido = {
+          ...local,
+          numero: api.numero,
+          fecha: api.fecha,
+          estado: api.estado,
+          subtotal: api.subtotal,
+          envio: api.envio,
+          total: api.total,
+          sincronizado: true,
+        };
+        this.ultimo = pedido;
+        guardar(CLAVE_PEDIDOS, pedido);
+        return pedido;
+      } catch (error) {
+        // Red caída, timeout o el backend falló: no se pierde el pedido, se
+        // guarda local y se marca para sincronizar después.
+        this.ultimo = local;
+        guardar(CLAVE_PEDIDOS, local);
+        return local;
+      } finally {
+        this.sincronizando = false;
+      }
     },
 
     mensajeWhatsApp(pedido) {

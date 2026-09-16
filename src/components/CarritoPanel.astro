@@ -61,7 +61,20 @@ import { tienda } from '../data/tienda.js';
             </div>
             <div class="linea__derecha">
               <p class="precio" x-text="$store.carrito.soles(item.precio * item.cantidad)"></p>
-              <button class="linea__quitar" @click="$store.carrito.quitar(item.id)">Quitar</button>
+              <button
+                class="linea__quitar"
+                @click="$store.carrito.quitar(item.id)"
+                aria-label="Quitar del carrito"
+                title="Quitar"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M4 7h16"></path>
+                  <path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7"></path>
+                  <path d="M6 7l.8 12.2c.05.98.86 1.8 1.84 1.8h6.72c.98 0 1.79-.82 1.84-1.8L18 7"></path>
+                  <path d="M10 11v6"></path>
+                  <path d="M14 11v6"></path>
+                </svg>
+              </button>
             </div>
           </li>
         </template>
@@ -149,13 +162,17 @@ import { tienda } from '../data/tienda.js';
 
   .panel__aviso {
     padding: 0.7rem 1.5rem;
-    background: var(--papel);
-    border-bottom: 1px solid var(--linea);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
+    border-bottom: 1px solid rgba(33, 30, 30, 0.12);
     font-size: 0.84rem;
   }
 
+  .panel__aviso strong {
+    color: var(--cafe);
+  }
+
   .panel__aviso--ok {
-    background: #e6ede8;
     color: var(--salvia-osc);
   }
 
@@ -252,25 +269,27 @@ import { tienda } from '../data/tienda.js';
   }
 
   .linea__quitar {
+    display: inline-flex;
+    align-self: flex-end;
     background: none;
     border: none;
-    padding: 0;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    padding: 0.3rem;
+    margin-right: -0.3rem;
     color: var(--tinta-suave);
-    border-bottom: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    transition: color 0.2s, background 0.2s;
   }
 
   .linea__quitar:hover {
-    color: var(--henna);
-    border-color: var(--henna);
+    color: var(--rojo);
+    background: rgba(192, 57, 43, 0.08);
   }
 
   .panel__pie {
-    border-top: 1px solid var(--linea-fuerte);
+    border-top: 1px solid rgba(33, 30, 30, 0.12);
     padding: 1.2rem 1.5rem 1.5rem;
-    background: var(--papel);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
   }
 
   .cuentas {
@@ -290,12 +309,13 @@ import { tienda } from '../data/tienda.js';
   }
 
   .cuentas__total {
-    border-top: 1px solid var(--linea-fuerte);
+    border-top: 1px solid rgba(33, 30, 30, 0.18);
     margin-top: 0.5rem;
     padding-top: 0.6rem !important;
     font-family: var(--titular);
     font-size: 1.2rem !important;
     font-weight: 600;
+    color: var(--cafe);
   }
 
   .panel__ver {
@@ -305,13 +325,13 @@ import { tienda } from '../data/tienda.js';
     font-size: 0.78rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--tinta-suave);
+    color: var(--salvia-osc);
     text-decoration: underline;
   }
 
   .panel__nota {
     font-size: 0.76rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin: 0.9rem 0 0;
     text-align: center;
   }

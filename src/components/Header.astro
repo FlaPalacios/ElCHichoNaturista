@@ -180,7 +180,7 @@ try {
     top: 0;
     z-index: 60;
     background: var(--fondo);
-    border-bottom: 1px solid var(--linea);
+    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
   }
 
   .cabecera__env {
@@ -208,7 +208,7 @@ try {
     flex-direction: column;
     font-family: var(--titular);
     line-height: 1;
-    color: var(--salvia);
+    color: var(--salvia-osc);
   }
 
   .marca__texto strong {
@@ -222,7 +222,7 @@ try {
     font-size: 0.72rem;
     letter-spacing: 0.3em;
     text-transform: uppercase;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.65);
     font-family: var(--texto);
     margin-top: 0.3rem;
   }
@@ -244,6 +244,7 @@ try {
     letter-spacing: 0.14em;
     text-transform: uppercase;
     padding-block: 0.4rem;
+    color: var(--salvia-osc);
     border-bottom: 2px solid transparent;
     white-space: nowrap;
     transition: border-color 0.2s, color 0.2s;
@@ -251,8 +252,8 @@ try {
 
   .nav__enlace:hover,
   .nav__enlace--activo {
-    border-color: var(--salvia);
-    color: var(--salvia);
+    border-color: var(--cafe);
+    color: var(--cafe);
   }
 
   .nav__flecha {
@@ -369,13 +370,13 @@ try {
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radio);
-    color: var(--tinta);
+    color: var(--salvia-osc);
     transition: border-color 0.2s, color 0.2s;
   }
 
   .accion:hover {
-    border-color: var(--linea-fuerte);
-    color: var(--salvia);
+    border-color: rgba(33, 30, 30, 0.2);
+    color: var(--cafe);
   }
 
   .contador {

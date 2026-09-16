@@ -1,7 +1,6 @@
 ---
 import { obtenerCategorias } from '../lib/api.js';
 import { tienda, waLink } from '../data/tienda.js';
-import Greca from './Greca.astro';
 
 const anio = new Date().getFullYear();
 
@@ -14,8 +13,6 @@ try {
 ---
 
 <footer class="pie">
-  <Greca color="#7A9B87" />
-
   <div class="env pie__env">
     <section class="pie__marca">
       <img src="/logo-1.png" alt={tienda.nombre} width="110" height="110" />
@@ -69,31 +66,31 @@ try {
   .pie {
     background: var(--salvia);
     color: #dfe7e1;
-    margin-top: 4rem;
+    margin-top: 2.5rem;
   }
 
   .pie__env {
     display: grid;
     grid-template-columns: 1.4fr repeat(3, 1fr);
-    gap: 2.5rem;
-    padding-block: 3.5rem 2.5rem;
+    gap: 2rem;
+    padding-block: 2.2rem 1.6rem;
   }
 
   .pie__marca img {
-    width: 104px;
-    height: 104px;
+    width: 76px;
+    height: 76px;
     object-fit: contain;
     background: var(--papel);
     border-radius: 50%;
-    padding: 7px;
+    padding: 6px;
   }
 
   .pie__lema {
     font-family: var(--titular);
-    font-size: 1.06rem;
-    line-height: 1.45;
+    font-size: 0.96rem;
+    line-height: 1.4;
     max-width: 30ch;
-    margin: 1.1rem 0 1.2rem;
+    margin: 0.8rem 0 0.9rem;
     color: #eef2ee;
   }
 
@@ -116,7 +113,7 @@ try {
 
   .pie .kicker {
     color: var(--jade-claro);
-    margin-bottom: 1rem;
+    margin-bottom: 0.7rem;
   }
 
   .pie__col ul {
@@ -126,8 +123,8 @@ try {
   }
 
   .pie__col li {
-    padding: 0.3rem 0;
-    font-size: 0.92rem;
+    padding: 0.2rem 0;
+    font-size: 0.88rem;
   }
 
   .pie__col a {
@@ -144,7 +141,7 @@ try {
 
   .pie__legal {
     border-top: 1px solid rgba(223, 231, 225, 0.22);
-    padding-block: 1.2rem 2rem;
+    padding-block: 0.9rem 1.4rem;
     display: flex;
     justify-content: space-between;
     gap: 2rem;

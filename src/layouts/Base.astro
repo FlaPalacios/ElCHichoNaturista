@@ -81,14 +81,15 @@ const titulo = title ? `${title} · ${tienda.nombre}` : `${tienda.nombre} · ${t
         place-items: center;
         width: 54px;
         height: 54px;
-        background: #1f7a4d;
+        background: var(--jade);
         color: #fff;
         border-radius: 50%;
-        box-shadow: 0 10px 22px -12px rgba(31, 122, 77, 0.9);
-        transition: transform 0.2s;
+        box-shadow: 0 10px 22px -12px rgba(122, 155, 135, 0.9);
+        transition: transform 0.2s, background 0.2s;
       }
 
       .wa-flotante:hover {
+        background: var(--salvia);
         transform: translateY(-2px);
       }
 

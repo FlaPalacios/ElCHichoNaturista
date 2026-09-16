@@ -29,6 +29,7 @@ const distritos = [
       hecho: null,
       enlaceWa: '',
       intento: false,
+      enviando: false,
       datos: { nombre: '', telefono: '', correo: '', entrega: 'delivery', direccion: '', distrito: '', referencia: '', pago: 'yape', nota: '' },
       get errores() {
         const e = {};
@@ -42,15 +43,20 @@ const distritos = [
         return e;
       },
       get valido() { return Object.keys(this.errores).length === 0 },
-      confirmar() {
+      async confirmar() {
         this.intento = true;
-        if (!this.valido || $store.carrito.vacio) return;
-        const pedido = $store.pedido.registrar({ ...this.datos }, $store.carrito);
-        this.enlaceWa = $store.pedido.mensajeWhatsApp(pedido);
-        this.hecho = pedido;
-        $store.carrito.vaciar();
-        window.open(this.enlaceWa, '_blank', 'noopener');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (!this.valido || $store.carrito.vacio || this.enviando) return;
+        this.enviando = true;
+        try {
+          const pedido = await $store.pedido.registrar({ ...this.datos }, $store.carrito);
+          this.enlaceWa = $store.pedido.mensajeWhatsApp(pedido);
+          this.hecho = pedido;
+          $store.carrito.vaciar();
+          window.open(this.enlaceWa, '_blank', 'noopener');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } finally {
+          this.enviando = false;
+        }
       }
     }`}
   >
@@ -92,6 +98,10 @@ const distritos = [
         </p>
         <p class="listo__nota">
           Guarda tu número de pedido. Lo usamos para ubicar tu compra en el chat.
+        </p>
+        <p class="listo__sync" x-show="hecho && !hecho.sincronizado" x-cloak>
+          Guardamos tu pedido en este dispositivo; en cuanto tengamos conexión con nuestro
+          sistema lo confirmamos. Igual coordina el pago y la entrega por WhatsApp.
         </p>
       </div>
     </section>
@@ -225,7 +235,9 @@ const distritos = [
           </div>
         </dl>
 
-        <button type="submit" class="btn btn--bloque">Generar pedido y abrir WhatsApp</button>
+        <button type="submit" class="btn btn--bloque" :disabled="enviando">
+          <span x-text="enviando ? 'Generando pedido…' : 'Generar pedido y abrir WhatsApp'"></span>
+        </button>
 
         <p class="error error--bloque" x-show="intento && !valido">
           Revisa los campos marcados antes de continuar.
@@ -311,6 +323,11 @@ const distritos = [
     margin-top: 0.3rem;
   }
 
+  /* Dentro del resumen (fondo jade) el henna casi no contrasta. */
+  .resumen .error {
+    color: var(--cafe);
+  }
+
   .error--bloque {
     text-align: center;
     margin-top: 0.7rem;
@@ -378,16 +395,18 @@ const distritos = [
   .resumen {
     position: sticky;
     top: 120px;
-    background: var(--papel);
-    border: 1px solid var(--linea-fuerte);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
+    border: 1px solid rgba(33, 30, 30, 0.12);
     padding: 1.5rem;
   }
 
   .resumen__t {
     font-size: 1.3rem;
+    color: var(--cafe);
     margin-bottom: 1rem;
     padding-bottom: 0.7rem;
-    border-bottom: 1px solid var(--linea-fuerte);
+    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
   }
 
   .resumen__lista {
@@ -402,11 +421,11 @@ const distritos = [
     justify-content: space-between;
     gap: 1rem;
     padding: 0.4rem 0;
-    border-bottom: 1px dotted var(--linea-fuerte);
+    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
   }
 
   .resumen__nombre {
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.6);
   }
 
   .cuentas {
@@ -426,17 +445,18 @@ const distritos = [
   }
 
   .cuentas__total {
-    border-top: 1px solid var(--linea-fuerte);
+    border-top: 1px solid rgba(33, 30, 30, 0.18);
     margin-top: 0.6rem;
     padding-top: 0.7rem !important;
     font-family: var(--titular);
     font-size: 1.3rem !important;
     font-weight: 600;
+    color: var(--cafe);
   }
 
   .resumen__nota {
     font-size: 0.78rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin: 0.9rem 0 0;
   }
 
@@ -446,11 +466,11 @@ const distritos = [
     font-size: 0.78rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.6);
   }
 
   .resumen__volver:hover {
-    color: var(--salvia);
+    color: var(--cafe);
   }
 
   /* Confirmación */
@@ -494,8 +514,9 @@ const distritos = [
 
   .listo__detalle {
     text-align: left;
-    background: var(--papel);
-    border: 1px solid var(--linea-fuerte);
+    background: var(--jade);
+    color: rgba(33, 30, 30, 0.7);
+    border: 1px solid rgba(33, 30, 30, 0.12);
     padding: 1.4rem 1.5rem;
   }
 
@@ -505,7 +526,7 @@ const distritos = [
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--salvia);
+    color: var(--salvia-osc);
     margin-bottom: 0.8rem;
   }
 
@@ -521,7 +542,7 @@ const distritos = [
     justify-content: space-between;
     gap: 1rem;
     padding: 0.4rem 0;
-    border-bottom: 1px dotted var(--linea-fuerte);
+    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
   }
 
   .listo__total {
@@ -531,12 +552,21 @@ const distritos = [
     margin: 0.9rem 0 0;
     font-family: var(--titular);
     font-size: 1.2rem;
+    color: var(--cafe);
   }
 
   .listo__nota {
     font-size: 0.78rem;
-    color: var(--tinta-suave);
+    color: rgba(33, 30, 30, 0.55);
     margin: 0.8rem 0 0;
+  }
+
+  .listo__sync {
+    font-size: 0.78rem;
+    color: rgba(33, 30, 30, 0.6);
+    border-left: 3px solid var(--henna);
+    padding-left: 0.9rem;
+    margin: 0.9rem 0 0;
   }
 
   /* Vacío */

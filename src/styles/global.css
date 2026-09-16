@@ -72,14 +72,17 @@
   --fondo: #f7f7f7;
 
   /* Derivados del sello: tinta pizarra, papel, henna */
-  /* Café: acento de contraste, solo en puntos concretos */
-  --cafe: #1c1919;
+  /* Café / negro tierra mojada: acento de contraste, solo en botones y
+     detalles pequeños (no en fondos grandes de sección). */
+  --cafe: #211e1e;
   --tinta: #33393a;
   --tinta-suave: #5f6866;
   --papel: #efe9dc;
   --papel-osc: #e3dbc9;
   --henna: #a8552f;
   --arena: #c8b48c;
+  /* Rojo de aviso: solo para el hover de "quitar" en el carrito. */
+  --rojo: #c0392b;
 
   --linea: #d8d5cc;
   --linea-fuerte: #b9b5a8;
@@ -224,15 +227,15 @@ p {
 .cabecera-seccion {
   display: flex;
   align-items: flex-end;
+  justify-content: space-between;
   gap: 1.5rem;
   margin-bottom: 2.5rem;
 }
 
+/* Sin línea divisoria: el espacio entre el título y "ver más" lo hace
+   justify-content: space-between de arriba. */
 .cabecera-seccion__linea {
-  flex: 1;
-  height: 1px;
-  background: var(--linea-fuerte);
-  margin-bottom: 0.6rem;
+  display: none;
 }
 
 .enlace-mas {
@@ -297,14 +300,14 @@ p {
 }
 
 .btn--wa {
-  background: #1f7a4d;
-  border-color: #1f7a4d;
+  background: var(--jade);
+  border-color: var(--jade);
   color: #fff;
 }
 
 .btn--wa:hover {
-  background: #19643f;
-  border-color: #19643f;
+  background: var(--salvia);
+  border-color: var(--salvia);
 }
 
 .btn--claro {
