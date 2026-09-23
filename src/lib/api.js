@@ -1,12 +1,13 @@
 // Único punto de contacto con la API de FastAPI.
 // Las páginas no llaman a fetch: piden los datos a estas funciones.
 
+import { ESPERA } from './entorno.js';
+
 // PUBLIC_ porque este archivo también corre en el navegador (checkout y
 // carrito): Astro solo expone al cliente las variables con ese prefijo.
 const BASE = (
   import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1'
 ).replace(/\/$/, '');
-const TIEMPO_LIMITE = 8000;
 
 /** Error de la API con el estado HTTP, para distinguir un 404 de una caída. */
 export class ErrorApi extends Error {
@@ -27,7 +28,7 @@ export class ErrorApi extends Error {
 async function _solicitar(url, ruta, opciones) {
   let respuesta;
   try {
-    respuesta = await fetch(url, { signal: AbortSignal.timeout(TIEMPO_LIMITE), ...opciones });
+    respuesta = await fetch(url, { signal: AbortSignal.timeout(ESPERA), ...opciones });
   } catch (causa) {
     // La API no respondió: apagada, red caída o timeout.
     throw new ErrorApi(

@@ -31,6 +31,10 @@ La URL de la API se configura en `.env` (`PUBLIC_API_URL`); por defecto apunta a
 `http://127.0.0.1:8000/api/v1`. Si el backend no responde, el sitio no se cae:
 muestra un aviso con el botón de WhatsApp.
 
+## Publicarlo
+
+Los pasos para dejarlo en línea están en [DESPLIEGUE.md](DESPLIEGUE.md).
+
 ## Estado según las etapas de CONTEXTO_PROYECTO.md
 
 | Etapa | Estado |

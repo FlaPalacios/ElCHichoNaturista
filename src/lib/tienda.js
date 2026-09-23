@@ -3,6 +3,7 @@
 // los de `src/data/tienda.js`, y el sitio sigue mostrando algo sensato.
 
 import { tienda as respaldo } from '../data/tienda.js';
+import { ESPERA } from './entorno.js';
 
 const BASE = (
   import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1'
@@ -12,7 +13,7 @@ export async function cargarTienda() {
   try {
     const respuesta = await fetch(BASE + '/tienda', {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(ESPERA),
     });
     if (!respuesta.ok) return respaldo;
     const d = await respuesta.json();

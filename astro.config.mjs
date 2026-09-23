@@ -9,5 +9,8 @@ export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [alpinejs({ entrypoint: '/src/alpine.js' })],
-  site: 'https://elchiconaturista.pe',
+  // La dirección real del despliegue: sale en las etiquetas que arma Astro
+  // para compartir el enlace. En el servidor de muestra se pone su URL; el
+  // dominio definitivo queda de respaldo.
+  site: process.env.SITIO_URL || 'https://elchiconaturista.pe',
 });

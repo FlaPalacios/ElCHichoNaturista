@@ -15,16 +15,17 @@ from app.config import ajustes
 from app.database import obtener_sesion
 from app.schemas import Salud
 
+# En el servidor la documentación queda cerrada: lista todas las rutas del
+# panel y facilita tantear la API desde fuera. En desarrollo sigue en /docs.
+_en_servidor = ajustes.entorno.lower() in {"produccion", "producción", "production"}
+
 app = FastAPI(
     title=ajustes.proyecto,
     version=ajustes.version,
-    description=(
-        "API interna de la tienda El Chico Naturista. "
-        "Etapa 3: lectura de catálogo (categorías y productos)."
-    ),
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    description="API de la tienda El Chico Naturista.",
+    docs_url=None if _en_servidor else "/docs",
+    redoc_url=None if _en_servidor else "/redoc",
+    openapi_url=None if _en_servidor else "/openapi.json",
 )
 
 app.add_middleware(
@@ -43,7 +44,7 @@ def raiz():
     return {
         "proyecto": ajustes.proyecto,
         "version": ajustes.version,
-        "docs": "/docs",
+        "docs": None if _en_servidor else "/docs",
         "api": ajustes.prefijo_api,
     }
 

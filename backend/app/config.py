@@ -3,6 +3,7 @@
 from decimal import Decimal
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,10 +24,38 @@ class Ajustes(BaseSettings):
     prefijo_api: str = "/api/v1"
 
     # Orígenes que pueden llamar a la API desde el navegador (Astro en dev).
+    # En el servidor se pone la dirección del sitio publicado, separando con
+    # comas si hay más de una.
     origenes_cors: list[str] = [
         "http://localhost:4321",
         "http://127.0.0.1:4321",
     ]
+
+    @field_validator("origenes_cors", mode="before")
+    @classmethod
+    def _separar_por_comas(cls, valor):
+        """Permite ORIGENES_CORS=https://a.com,https://b.com en el entorno.
+
+        Pydantic espera JSON para una lista, que es incómodo de escribir en el
+        panel de un servidor; acá se acepta la forma corta.
+        """
+        if isinstance(valor, str) and not valor.strip().startswith("["):
+            return [t.strip() for t in valor.split(",") if t.strip()]
+        return valor
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _con_psycopg(cls, valor: str) -> str:
+        """Fuerza el driver psycopg en la URL de la base.
+
+        Los servidores administrados entregan la URL como `postgresql://…`,
+        que SQLAlchemy resuelve al driver viejo (psycopg2) y falla porque no
+        está instalado. Se traduce acá y no en cada despliegue.
+        """
+        for prefijo in ("postgresql://", "postgres://"):
+            if valor.startswith(prefijo):
+                return "postgresql+psycopg://" + valor[len(prefijo):]
+        return valor
 
     # Panel de administración. El secreto se genera al instalar y va en .env;
     # si cambia, todas las sesiones abiertas se caen.
