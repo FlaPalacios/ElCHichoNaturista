@@ -1,5 +1,5 @@
 ---
-import Etiqueta from './Etiqueta.astro';
+import FotoProducto from './FotoProducto.astro';
 
 const { producto, indice = null, alto = false } = Astro.props;
 const oferta = Boolean(producto.precioAntes);
@@ -17,7 +17,7 @@ const paraCarrito = {
 
 <article class="ficha" x-data={`{ p: ${JSON.stringify(paraCarrito)} }`}>
   <a href={`/producto/${producto.slug}`} class="ficha__vista" tabindex="-1" aria-hidden="true">
-    <Etiqueta producto={producto} alto={alto} />
+    <FotoProducto producto={producto} alto={alto} />
     {indice !== null && <span class="ficha__indice">{String(indice).padStart(2, '0')}</span>}
     {oferta && <span class="ficha__oferta">−{dto}%</span>}
     {producto.stock <= 12 && <span class="ficha__poco">Quedan {producto.stock}</span>}
@@ -79,7 +79,7 @@ const paraCarrito = {
     font-size: 0.78rem;
     letter-spacing: 0.1em;
     color: var(--tinta-suave);
-    background: rgba(247, 247, 247, 0.82);
+    background: color-mix(in srgb, var(--fondo) 82%, transparent);
     padding: 0.1rem 0.35rem;
   }
 
@@ -101,7 +101,7 @@ const paraCarrito = {
     bottom: 0.6rem;
     left: 0.7rem;
     border-radius: 3px;
-    background: rgba(247, 247, 247, 0.9);
+    background: color-mix(in srgb, var(--fondo) 90%, transparent);
     border: 1px solid var(--linea-fuerte);
     font-size: 0.66rem;
     letter-spacing: 0.1em;
@@ -165,7 +165,7 @@ const paraCarrito = {
     background: var(--cafe);
     border: 1px solid var(--cafe);
     border-radius: var(--radio);
-    color: #f4f1e8;
+    color: var(--claro);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -178,6 +178,6 @@ const paraCarrito = {
   .ficha__agregar:hover {
     background: var(--salvia);
     border-color: var(--salvia);
-    color: #f4f1e8;
+    color: var(--claro);
   }
 </style>

@@ -2,7 +2,8 @@
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
 import { obtenerProductos } from '../lib/api.js';
-import { tienda } from '../data/tienda.js';
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
 
 let sugerencias = [];
 try {
@@ -108,12 +109,12 @@ try {
             <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
           </div>
           <div>
-            <dt>Envío en Lima</dt>
-            <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio)"></dd>
+            <dt>Envío</dt>
+            <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : 'Según tu distrito'"></dd>
           </div>
           <div class="cuentas__total">
-            <dt>Total</dt>
-            <dd x-text="$store.carrito.soles($store.carrito.total)"></dd>
+            <dt>Total sin envío</dt>
+            <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
           </div>
         </dl>
 
@@ -125,7 +126,7 @@ try {
             ></div>
           </div>
           <p>
-            Agrega <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> y el envío en Lima va gratis.
+            Agrega <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> y el envío va gratis.
           </p>
         </div>
 
@@ -237,7 +238,7 @@ try {
 
   .fila__quitar:hover {
     color: var(--rojo);
-    background: rgba(192, 57, 43, 0.08);
+    background: color-mix(in srgb, var(--rojo) 8%, transparent);
   }
 
   .fila__cant {
@@ -325,8 +326,8 @@ try {
     position: sticky;
     top: 120px;
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
-    border: 1px solid rgba(33, 30, 30, 0.12);
+    color: var(--cafe-texto);
+    border: 1px solid var(--cafe-linea);
     padding: 1.5rem;
   }
 
@@ -335,7 +336,7 @@ try {
     color: var(--cafe);
     margin-bottom: 1.1rem;
     padding-bottom: 0.7rem;
-    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
+    border-bottom: 1px solid var(--cafe-linea);
   }
 
   .cuentas {
@@ -355,7 +356,7 @@ try {
   }
 
   .cuentas__total {
-    border-top: 1px solid rgba(33, 30, 30, 0.18);
+    border-top: 1px solid var(--cafe-linea);
     margin-top: 0.6rem;
     padding-top: 0.7rem !important;
     font-family: var(--titular);
@@ -367,12 +368,12 @@ try {
   .barra-envio {
     margin-bottom: 1.2rem;
     font-size: 0.8rem;
-    color: rgba(33, 30, 30, 0.6);
+    color: var(--cafe-suave);
   }
 
   .barra-envio__riel {
     height: 3px;
-    background: rgba(33, 30, 30, 0.18);
+    background: var(--cafe-linea);
     margin-bottom: 0.5rem;
   }
 
@@ -392,7 +393,7 @@ try {
 
   .resumen__nota {
     font-size: 0.78rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin: 0.9rem 0 0;
   }
 

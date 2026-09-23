@@ -1,12 +1,17 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tienda } from '../data/tienda.js';
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
+import { obtenerDepartamentos } from '../lib/api.js';
 
-const distritos = [
-  'Miraflores', 'San Isidro', 'Surco', 'Barranco', 'San Borja', 'La Molina',
-  'Jesús María', 'Magdalena', 'Pueblo Libre', 'Lince', 'San Miguel', 'Surquillo',
-  'Cercado de Lima', 'Los Olivos', 'San Martín de Porres', 'Callao', 'Otro / provincia',
-];
+// Los departamentos se renderizan desde el servidor; provincias y distritos
+// los pide el navegador al ir eligiendo.
+let departamentos = [];
+try {
+  departamentos = await obtenerDepartamentos();
+} catch {
+  departamentos = [];
+}
 ---
 
 <Base title="Finalizar pedido" description="Genera tu número de pedido y confírmalo por WhatsApp." activo="checkout">
@@ -25,40 +30,7 @@ const distritos = [
   <div
     class="env checkout"
     x-cloak
-    x-data={`{
-      hecho: null,
-      enlaceWa: '',
-      intento: false,
-      enviando: false,
-      datos: { nombre: '', telefono: '', correo: '', entrega: 'delivery', direccion: '', distrito: '', referencia: '', pago: 'yape', nota: '' },
-      get errores() {
-        const e = {};
-        if (this.datos.nombre.trim().length < 3) e.nombre = 'Escribe tu nombre completo';
-        if (!/^[0-9\\s+]{9,15}$/.test(this.datos.telefono.trim())) e.telefono = 'Un número de 9 dígitos';
-        if (this.datos.correo && !this.datos.correo.includes('@')) e.correo = 'Correo inválido';
-        if (this.datos.entrega === 'delivery') {
-          if (this.datos.direccion.trim().length < 5) e.direccion = 'Calle y número';
-          if (!this.datos.distrito) e.distrito = 'Elige tu distrito';
-        }
-        return e;
-      },
-      get valido() { return Object.keys(this.errores).length === 0 },
-      async confirmar() {
-        this.intento = true;
-        if (!this.valido || $store.carrito.vacio || this.enviando) return;
-        this.enviando = true;
-        try {
-          const pedido = await $store.pedido.registrar({ ...this.datos }, $store.carrito);
-          this.enlaceWa = $store.pedido.mensajeWhatsApp(pedido);
-          this.hecho = pedido;
-          $store.carrito.vaciar();
-          window.open(this.enlaceWa, '_blank', 'noopener');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } finally {
-          this.enviando = false;
-        }
-      }
-    }`}
+    x-data={`checkout(${JSON.stringify(departamentos)})`}
   >
     <!-- ── Carrito vacío ───────────────────────────────────────── -->
     <section class="aviso-vacio" x-show="!hecho && $store.carrito.vacio">
@@ -134,75 +106,72 @@ const distritos = [
         </fieldset>
 
         <fieldset class="bloque-form">
-          <legend><span class="indice">02</span> Entrega</legend>
+          <legend><span class="indice">02</span> A dónde lo enviamos</legend>
 
-          <div class="opciones">
-            <label class="opcion" :class="datos.entrega === 'delivery' && 'opcion--activa'">
-              <input type="radio" value="delivery" x-model="datos.entrega" />
-              <span class="opcion__t">Delivery</span>
-              <span class="opcion__d">Lima · S/ 12, gratis desde S/ {tienda.envioGratisDesde}</span>
-            </label>
-            <label class="opcion" :class="datos.entrega === 'tienda' && 'opcion--activa'">
-              <input type="radio" value="tienda" x-model="datos.entrega" />
-              <span class="opcion__t">Recojo en tienda</span>
-              <span class="opcion__d">{tienda.direccion}</span>
-            </label>
-          </div>
+          <label class="campo">
+            <span class="campo__etq">Dirección</span>
+            <input type="text" x-model="datos.direccion" autocomplete="street-address" placeholder="Calle, número y departamento" />
+            <span class="error" x-show="intento && errores.direccion" x-text="errores.direccion"></span>
+          </label>
 
-          <div x-show="datos.entrega === 'delivery'" x-transition.opacity>
+          <div class="par">
             <label class="campo">
-              <span class="campo__etq">Dirección</span>
-              <input type="text" x-model="datos.direccion" autocomplete="street-address" placeholder="Calle, número y departamento" />
-              <span class="error" x-show="intento && errores.direccion" x-text="errores.direccion"></span>
+              <span class="campo__etq">Departamento</span>
+              <select x-model="datos.departamento" @change="cambiarDepartamento()">
+                <option value="">Elige tu departamento</option>
+                {departamentos.map((d) => <option value={d.codigo}>{d.nombre}</option>)}
+              </select>
+              <span class="error" x-show="intento && errores.departamento" x-text="errores.departamento"></span>
             </label>
 
-            <div class="par">
-              <label class="campo">
-                <span class="campo__etq">Distrito</span>
-                <select x-model="datos.distrito">
-                  <option value="">Elige tu distrito</option>
-                  {distritos.map((d) => <option value={d}>{d}</option>)}
-                </select>
-                <span class="error" x-show="intento && errores.distrito" x-text="errores.distrito"></span>
-              </label>
-
-              <label class="campo">
-                <span class="campo__etq">Referencia (opcional)</span>
-                <input type="text" x-model="datos.referencia" placeholder="Portón verde, frente al parque" />
-              </label>
-            </div>
+            <label class="campo">
+              <span class="campo__etq">Provincia</span>
+              <select x-model="datos.provincia" @change="cambiarProvincia()" :disabled="!datos.departamento || cargando === 'provincias'">
+                <option value="" x-text="cargando === 'provincias' ? 'Cargando…' : 'Elige tu provincia'"></option>
+                <template x-for="pr in provincias" :key="pr.codigo">
+                  <option :value="pr.codigo" x-text="pr.nombre"></option>
+                </template>
+              </select>
+              <span class="error" x-show="intento && errores.provincia" x-text="errores.provincia"></span>
+            </label>
           </div>
 
-          <p class="apunte" x-show="datos.entrega === 'tienda'">
-            Te escribimos cuando esté listo para recoger. Horario: {tienda.horario}.
+          <div class="par">
+            <label class="campo">
+              <span class="campo__etq">Distrito</span>
+              <select x-model="datos.distrito" @change="cambiarDistrito()" :disabled="!datos.provincia || cargando === 'distritos'">
+                <option value="" x-text="cargando === 'distritos' ? 'Cargando…' : 'Elige tu distrito'"></option>
+                <template x-for="di in distritos" :key="di.codigo">
+                  <option :value="di.codigo" x-text="di.nombre"></option>
+                </template>
+              </select>
+              <span class="error" x-show="intento && errores.distrito" x-text="errores.distrito"></span>
+            </label>
+
+            <label class="campo">
+              <span class="campo__etq">Referencia (opcional)</span>
+              <input type="text" x-model="datos.referencia" placeholder="Portón verde, frente al parque" />
+            </label>
+          </div>
+
+          <p class="apunte">
+            Envío gratis en todo el Perú desde S/ {tienda.envioGratisDesde}.
           </p>
         </fieldset>
 
         <fieldset class="bloque-form">
-          <legend><span class="indice">03</span> Cómo vas a pagar</legend>
-
-          <div class="opciones opciones--tres">
-            <label class="opcion" :class="datos.pago === 'yape' && 'opcion--activa'">
-              <input type="radio" value="yape" x-model="datos.pago" />
-              <span class="opcion__t">Yape o Plin</span>
-              <span class="opcion__d">Te pasamos el número por el chat</span>
-            </label>
-            <label class="opcion" :class="datos.pago === 'transferencia' && 'opcion--activa'">
-              <input type="radio" value="transferencia" x-model="datos.pago" />
-              <span class="opcion__t">Transferencia</span>
-              <span class="opcion__d">BCP o Interbank</span>
-            </label>
-            <label class="opcion" :class="datos.pago === 'contraentrega' && 'opcion--activa'">
-              <input type="radio" value="contraentrega" x-model="datos.pago" />
-              <span class="opcion__t">Contra entrega</span>
-              <span class="opcion__d">Efectivo al recibir, solo Lima</span>
-            </label>
-          </div>
+          <legend><span class="indice">03</span> Algo más que debamos saber</legend>
 
           <label class="campo">
             <span class="campo__etq">Nota para el pedido (opcional)</span>
             <textarea x-model="datos.nota" rows="3" placeholder="Ej.: entregar después de las 5 p. m."></textarea>
           </label>
+
+          <p class="apunte apunte--pago">
+            El pago lo coordinamos por WhatsApp: puedes cancelar con <strong>Yape</strong>,
+            <strong>Plin</strong> o <strong>transferencia bancaria</strong>. No se cobra nada
+            en línea.
+          </p>
         </fieldset>
       </div>
 
@@ -226,12 +195,14 @@ const distritos = [
             <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
           </div>
           <div>
-            <dt x-text="datos.entrega === 'tienda' ? 'Recojo en tienda' : 'Envío en Lima'"></dt>
-            <dd x-text="datos.entrega === 'tienda' ? 'S/ 0.00' : ($store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio))"></dd>
+            <dt>Envío</dt>
+            <dd
+              x-text="costoEnvio === 0 ? 'Gratis' : (costoEnvio === null ? (cargando === 'envio' ? 'Calculando…' : 'Elige tu distrito') : $store.carrito.soles(costoEnvio))"
+            ></dd>
           </div>
           <div class="cuentas__total">
             <dt>Total</dt>
-            <dd x-text="$store.carrito.soles(datos.entrega === 'tienda' ? $store.carrito.subtotal : $store.carrito.total)"></dd>
+            <dd x-text="$store.carrito.soles(total)"></dd>
           </div>
         </dl>
 
@@ -244,8 +215,8 @@ const distritos = [
         </p>
 
         <p class="resumen__nota">
-          Al confirmar se abre WhatsApp con el detalle escrito. Ahí acordamos pago y horario de
-          entrega. El envío a provincia se cotiza por el chat.
+          Al confirmar se abre WhatsApp con el detalle escrito. Ahí acordamos el pago y el
+          horario de entrega.
         </p>
 
         <a href="/carrito" class="resumen__volver">← Volver al carrito</a>
@@ -333,56 +304,6 @@ const distritos = [
     margin-top: 0.7rem;
   }
 
-  .opciones {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.8rem;
-    margin-bottom: 1.3rem;
-  }
-
-  .opciones--tres {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .opcion {
-    display: block;
-    border: 1px solid var(--linea-fuerte);
-    padding: 0.9rem 1rem;
-    cursor: pointer;
-    background: #fff;
-    transition: border-color 0.2s, background 0.2s;
-  }
-
-  .opcion:hover {
-    border-color: var(--jade);
-  }
-
-  .opcion--activa {
-    border-color: var(--salvia);
-    background: var(--papel);
-    box-shadow: inset 3px 0 0 var(--salvia);
-  }
-
-  .opcion input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .opcion__t {
-    display: block;
-    font-family: var(--titular);
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin-bottom: 0.15rem;
-  }
-
-  .opcion__d {
-    display: block;
-    font-size: 0.78rem;
-    color: var(--tinta-suave);
-  }
-
   .apunte {
     font-size: 0.86rem;
     color: var(--tinta-suave);
@@ -391,13 +312,18 @@ const distritos = [
     margin: 0;
   }
 
+  .apunte--pago {
+    border-left-color: var(--henna);
+    margin-top: 1.1rem;
+  }
+
   /* Resumen */
   .resumen {
     position: sticky;
     top: 120px;
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
-    border: 1px solid rgba(33, 30, 30, 0.12);
+    color: var(--cafe-texto);
+    border: 1px solid var(--cafe-linea);
     padding: 1.5rem;
   }
 
@@ -406,7 +332,7 @@ const distritos = [
     color: var(--cafe);
     margin-bottom: 1rem;
     padding-bottom: 0.7rem;
-    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
+    border-bottom: 1px solid var(--cafe-linea);
   }
 
   .resumen__lista {
@@ -421,11 +347,11 @@ const distritos = [
     justify-content: space-between;
     gap: 1rem;
     padding: 0.4rem 0;
-    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
+    border-bottom: 1px dotted var(--cafe-linea);
   }
 
   .resumen__nombre {
-    color: rgba(33, 30, 30, 0.6);
+    color: var(--cafe-suave);
   }
 
   .cuentas {
@@ -445,7 +371,7 @@ const distritos = [
   }
 
   .cuentas__total {
-    border-top: 1px solid rgba(33, 30, 30, 0.18);
+    border-top: 1px solid var(--cafe-linea);
     margin-top: 0.6rem;
     padding-top: 0.7rem !important;
     font-family: var(--titular);
@@ -456,7 +382,7 @@ const distritos = [
 
   .resumen__nota {
     font-size: 0.78rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin: 0.9rem 0 0;
   }
 
@@ -466,7 +392,7 @@ const distritos = [
     font-size: 0.78rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(33, 30, 30, 0.6);
+    color: var(--cafe-suave);
   }
 
   .resumen__volver:hover {
@@ -515,8 +441,8 @@ const distritos = [
   .listo__detalle {
     text-align: left;
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
-    border: 1px solid rgba(33, 30, 30, 0.12);
+    color: var(--cafe-texto);
+    border: 1px solid var(--cafe-linea);
     padding: 1.4rem 1.5rem;
   }
 
@@ -542,7 +468,7 @@ const distritos = [
     justify-content: space-between;
     gap: 1rem;
     padding: 0.4rem 0;
-    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
+    border-bottom: 1px dotted var(--cafe-linea);
   }
 
   .listo__total {
@@ -557,13 +483,13 @@ const distritos = [
 
   .listo__nota {
     font-size: 0.78rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin: 0.8rem 0 0;
   }
 
   .listo__sync {
     font-size: 0.78rem;
-    color: rgba(33, 30, 30, 0.6);
+    color: var(--cafe-suave);
     border-left: 3px solid var(--henna);
     padding-left: 0.9rem;
     margin: 0.9rem 0 0;
@@ -603,9 +529,7 @@ const distritos = [
   }
 
   @media (max-width: 620px) {
-    .par,
-    .opciones,
-    .opciones--tres {
+    .par {
       grid-template-columns: 1fr;
     }
   }

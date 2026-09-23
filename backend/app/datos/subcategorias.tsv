@@ -1,0 +1,9 @@
+slug	nombre	categoria_slug	orden	activo
+bebidas-frescas	Bebidas frescas	frescos	1	true
+bebidas-probioticas	Bebidas probióticas	frescos	2	true
+cafe-y-cacao	Café y cacao	abarrotes	1	true
+aceites-vegetales	Aceites vegetales	abarrotes	2	true
+mermeladas-y-mieles	Mermeladas y mieles	abarrotes	3	true
+proteinas-y-suplementos	Proteínas y suplementos	abarrotes	4	true
+cuidado-de-cabello	Cuidado de cabello	cuidado-personal	1	true
+cuidado-corporal	Cuidado corporal	cuidado-personal	2	true

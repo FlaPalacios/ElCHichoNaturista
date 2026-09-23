@@ -1,443 +1,515 @@
 ---
-import Base from '../../layouts/Base.astro';
-import ApiCaida from '../../components/ApiCaida.astro';
-import { obtenerCategorias, obtenerProductos } from '../../lib/api.js';
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
 
-// El inventario ya sale de la base de datos. Lo que sigue siendo maqueta es el
-// acceso (sin JWT) y los pedidos: eso llega con los endpoints de la etapa 6.
-let productos = [];
-let categorias = [];
-let fallo = null;
-try {
-  [productos, categorias] = await Promise.all([obtenerProductos(), obtenerCategorias()]);
-} catch (error) {
-  fallo = error;
+export const prerender = false;
+
+// La sesión se comprueba en el servidor: si el token no sirve, ni siquiera se
+// renderiza el panel.
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+const sesion = Boolean(yo);
+
+const filtros = {
+  estado: Astro.url.searchParams.get('estado') ?? '',
+  q: Astro.url.searchParams.get('q') ?? '',
+};
+
+let pedidos = [];
+let apiCaida = false;
+if (sesion) {
+  const parametros = new URLSearchParams();
+  if (filtros.estado) parametros.set('estado', filtros.estado);
+  if (filtros.q) parametros.set('q', filtros.q);
+  const respuesta = await traer(`/pedidos?${parametros}`, token);
+  apiCaida = respuesta === undefined;
+  pedidos = respuesta ?? [];
 }
 
-const lista = [...productos].sort((a, b) => a.stock - b.stock);
-const valorInventario = productos.reduce((n, p) => n + p.precio * p.stock, 0);
-const stockBajo = productos.filter((p) => p.stock <= 12);
-
-const pedidosEjemplo = [
-  { numero: 'ECN-260908-4471', cliente: 'Rosa Quispe', items: 3, total: 118.8, estado: 'entregado' },
-  { numero: 'ECN-260909-8123', cliente: 'Luis Paredes', items: 1, total: 45.0, estado: 'en camino' },
-  { numero: 'ECN-260910-2094', cliente: 'Ana Torres', items: 5, total: 203.4, estado: 'pendiente' },
+const ESTADOS = [
+  { id: 'nuevo', nombre: 'Nuevo' },
+  { id: 'pago_confirmado', nombre: 'Pago confirmado' },
+  { id: 'preparando', nombre: 'Preparando' },
+  { id: 'enviado', nombre: 'Enviado' },
+  { id: 'entregado', nombre: 'Entregado' },
+  { id: 'cancelado', nombre: 'Cancelado' },
+  { id: 'no_concretado', nombre: 'No concretado' },
 ];
+
+const soles = (n) => 'S/ ' + Number(n).toFixed(2);
+const fecha = (iso) =>
+  new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Los que esperan que Fernando haga algo.
+const porAtender = pedidos.filter((p) => ['nuevo', 'pago_confirmado'].includes(p.estado)).length;
 ---
 
-<Base title="Panel de administración" description="Panel interno de El Chico Naturista.">
-  {fallo && <ApiCaida error={fallo} />}
-  <div class="env admin" x-data="{ dentro: false, filtro: '' }" hidden={Boolean(fallo)}>
-    <!-- Acceso (maqueta) -->
-    <section class="acceso" x-show="!dentro">
-      <p class="kicker">Área interna</p>
-      <h1 class="titulo">Panel de administración</h1>
-      <p class="acceso__d">Área restringida a la administración de la tienda.</p>
+<Admin title="Pedidos" seccion="pedidos" sesion={sesion}>
+  {
+    !sesion && (
+      <section class="acceso" x-data="{ usuario: '', password: '', error: '', entrando: false }">
+        <img src="/logo-1.png" alt="" width="64" height="64" class="acceso__sello" />
+        <h1 class="acceso__t">Panel interno</h1>
+        <p class="acceso__d">Entra con tu usuario para gestionar pedidos y catálogo.</p>
 
-      <form class="acceso__form" @submit.prevent="dentro = true">
-        <label class="campo">
-          <span class="campo__etq">Usuario</span>
-          <input type="text" autocomplete="username" placeholder="usuario" />
-        </label>
-        <label class="campo">
-          <span class="campo__etq">Contraseña</span>
-          <input type="password" autocomplete="current-password" placeholder="••••••••" />
-        </label>
-        <button class="btn btn--bloque" type="submit">Entrar</button>
-      </form>
-
-      <p class="maqueta">
-        <strong>Acceso de maqueta.</strong> Este formulario todavía no valida nada: la
-        autenticación con JWT llega en la etapa 6.
-      </p>
-    </section>
-
-    <!-- Tablero -->
-    <section x-show="dentro" x-cloak>
-      <header class="admin__cab">
-        <div>
-          <p class="kicker">Sesión de administración</p>
-          <h1 class="titulo">Tablero</h1>
-        </div>
-        <button class="salir" @click="dentro = false">Cerrar sesión</button>
-      </header>
-
-      <p class="maqueta maqueta--barra">
-        El inventario y las cifras salen de la base de datos real. Los pedidos de abajo
-        siguen siendo de ejemplo: sus endpoints llegan en la etapa 5.
-      </p>
-
-      <div class="metricas">
-        <article class="metrica">
-          <p class="metrica__n">{productos.length}</p>
-          <p class="metrica__e">Productos activos</p>
-          <p class="metrica__d">en venta ahora mismo</p>
-        </article>
-        <article class="metrica">
-          <p class="metrica__n">{categorias.length}</p>
-          <p class="metrica__e">Categorías</p>
-          <p class="metrica__d">Cosmética, suplementos, aceites, alimentos</p>
-        </article>
-        <article class="metrica">
-          <p class="metrica__n">{stockBajo.length}</p>
-          <p class="metrica__e">Con stock bajo</p>
-          <p class="metrica__d">12 unidades o menos</p>
-        </article>
-        <article class="metrica">
-          <p class="metrica__n">S/ {valorInventario.toFixed(0)}</p>
-          <p class="metrica__e">Valor del inventario</p>
-          <p class="metrica__d">Precio de venta × stock</p>
-        </article>
-      </div>
-
-      <!-- Pedidos -->
-      <section class="panel">
-        <div class="cabecera-seccion">
-          <div>
-            <p class="kicker">Últimos movimientos</p>
-            <h2 class="subtitulo">Pedidos</h2>
-          </div>
-          <span class="cabecera-seccion__linea"></span>
-        </div>
-
-        <table class="tabla">
-          <thead>
-            <tr>
-              <th>Número</th>
-              <th>Cliente</th>
-              <th>Ítems</th>
-              <th>Total</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-if="$store.pedido.ultimo">
-              <tr class="tabla__nuevo">
-                <td x-text="$store.pedido.ultimo?.numero"></td>
-                <td x-text="$store.pedido.ultimo?.cliente?.nombre || 'Tu pedido de prueba'"></td>
-                <td x-text="$store.pedido.ultimo?.items?.length"></td>
-                <td x-text="$store.carrito.soles($store.pedido.ultimo?.total || 0)"></td>
-                <td><span class="estado estado--pendiente">pendiente</span></td>
-              </tr>
-            </template>
-            {
-              pedidosEjemplo.map((p) => (
-                <tr>
-                  <td>{p.numero}</td>
-                  <td>{p.cliente}</td>
-                  <td>{p.items}</td>
-                  <td>S/ {p.total.toFixed(2)}</td>
-                  <td>
-                    <span class={`estado estado--${p.estado.replace(' ', '-')}`}>{p.estado}</span>
-                  </td>
-                </tr>
-              ))
-            }
-          </tbody>
-        </table>
-      </section>
-
-      <!-- Inventario -->
-      <section class="panel">
-        <div class="cabecera-seccion">
-          <div>
-            <p class="kicker">Ordenado por stock</p>
-            <h2 class="subtitulo">Inventario</h2>
-          </div>
-          <span class="cabecera-seccion__linea"></span>
-          <label class="buscar-admin">
-            <span class="solo-lector">Buscar producto</span>
-            <input type="search" x-model="filtro" placeholder="Filtrar productos…" />
+        <form
+          class="acceso__form"
+          @submit.prevent="
+            error = ''; entrando = true;
+            fetch('/api/admin/sesion', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ usuario, password })
+            })
+              .then(r => r.ok ? location.reload() : r.json().then(d => { error = d.error; entrando = false }))
+              .catch(() => { error = 'No se pudo conectar con el servidor.'; entrando = false })
+          "
+        >
+          <label class="campo">
+            <span class="campo__etq">Usuario</span>
+            <input type="text" x-model="usuario" autocomplete="username" required />
           </label>
+          <label class="campo">
+            <span class="campo__etq">Contraseña</span>
+            <input type="password" x-model="password" autocomplete="current-password" required />
+          </label>
+          <button class="btn btn--bloque" type="submit" :disabled="entrando">
+            <span x-text="entrando ? 'Entrando…' : 'Entrar'">Entrar</span>
+          </button>
+          <p class="acceso__error" x-show="error" x-text="error" x-cloak></p>
+        </form>
+      </section>
+    )
+  }
+
+  {
+    sesion && (
+      <>
+        <header class="cab">
+          <div>
+            <p class="kicker">Panel</p>
+            <h1 class="titulo">Pedidos</h1>
+          </div>
+          <p class="cab__resumen">
+            {pedidos.length} en la lista · <strong>{porAtender}</strong> por atender
+          </p>
+        </header>
+
+        {apiCaida && (
+          <p class="aviso-api">
+            No se pudo hablar con la API. Comprueba que el backend esté levantado.
+          </p>
+        )}
+
+        <form class="filtros" method="get">
+          <label class="campo">
+            <span class="campo__etq">Buscar</span>
+            <input
+              type="search"
+              name="q"
+              value={filtros.q}
+              placeholder="Número de pedido, teléfono o nombre"
+            />
+          </label>
+          <label class="campo">
+            <span class="campo__etq">Estado</span>
+            <select name="estado">
+              <option value="">Todos</option>
+              {ESTADOS.map((e) => (
+                <option value={e.id} selected={filtros.estado === e.id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button class="btn" type="submit">Filtrar</button>
+          {(filtros.q || filtros.estado) && (
+            <a href="/admin" class="filtros__limpiar">Limpiar</a>
+          )}
+        </form>
+
+        {pedidos.length === 0 && !apiCaida && (
+          <p class="vacio">
+            {filtros.q || filtros.estado
+              ? 'Ningún pedido coincide con ese filtro.'
+              : 'Todavía no hay pedidos. Cuando entre el primero, aparece acá.'}
+          </p>
+        )}
+
+        <div class="lista">
+          {pedidos.map((p) => (
+            <article
+              class="pedido"
+              x-data={`pedidoAdmin(${JSON.stringify({
+                numero: p.numero_pedido,
+                estado: p.estado,
+                courier: p.courier ?? '',
+                seguimiento: p.codigo_seguimiento ?? '',
+                nota: p.nota_interna ?? '',
+                telefono: p.telefono_contacto,
+              })})`}
+            >
+              <div class="pedido__cab">
+                <div>
+                  <p class="pedido__numero">{p.numero_pedido}</p>
+                  <p class="pedido__fecha">{fecha(p.creado_en)}</p>
+                </div>
+                <span class="etiqueta" :class="'etiqueta--' + estado" x-text="nombreEstado()">
+                  {ESTADOS.find((e) => e.id === p.estado)?.nombre}
+                </span>
+                <p class="pedido__total">{soles(p.total)}</p>
+                <button class="pedido__abrir" @click="abierto = !abierto" type="button">
+                  <span x-text="abierto ? 'Cerrar' : 'Ver detalle'">Ver detalle</span>
+                </button>
+              </div>
+
+              <div class="pedido__cliente">
+                <span>{p.nombre_contacto}</span>
+                <span>·</span>
+                <a href={`https://wa.me/51${p.telefono_contacto.replace(/\D/g, '').slice(-9)}`} target="_blank" rel="noopener">
+                  {p.telefono_contacto}
+                </a>
+                <span>·</span>
+                <span>{p.distrito}, {p.provincia}, {p.departamento}</span>
+              </div>
+
+              <div class="pedido__cuerpo" x-show="abierto" x-cloak x-transition.opacity>
+                <div class="detalle">
+                  <div>
+                    <h3 class="detalle__t">Productos</h3>
+                    <ul class="detalle__items">
+                      {p.items.map((i) => (
+                        <li>
+                          <span>{i.cantidad} × {i.producto.nombre}</span>
+                          <span>{soles(i.precio_unitario * i.cantidad)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p class="detalle__cuenta"><span>Subtotal</span><span>{soles(p.subtotal)}</span></p>
+                    <p class="detalle__cuenta"><span>Envío</span><span>{Number(p.envio) === 0 ? 'Gratis' : soles(p.envio)}</span></p>
+                    <p class="detalle__cuenta detalle__cuenta--total"><span>Total</span><span>{soles(p.total)}</span></p>
+                  </div>
+
+                  <div>
+                    <h3 class="detalle__t">Entrega</h3>
+                    <dl class="detalle__datos">
+                      <div><dt>Dirección</dt><dd>{p.direccion_envio}</dd></div>
+                      {p.referencia && <div><dt>Referencia</dt><dd>{p.referencia}</dd></div>}
+                      <div><dt>Distrito</dt><dd>{p.distrito}, {p.provincia}</dd></div>
+                      <div><dt>Departamento</dt><dd>{p.departamento}</dd></div>
+                      {p.email_contacto && <div><dt>Correo</dt><dd>{p.email_contacto}</dd></div>}
+                      {p.nota && <div><dt>Nota del cliente</dt><dd>{p.nota}</dd></div>}
+                    </dl>
+
+                    <a
+                      class="btn btn--wa btn--bloque"
+                      href={`https://wa.me/51${p.telefono_contacto.replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(`Hola ${p.nombre_contacto}, te escribimos por tu pedido ${p.numero_pedido}.`)}`}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Abrir WhatsApp
+                    </a>
+                  </div>
+
+                  <div>
+                    <h3 class="detalle__t">Gestión</h3>
+
+                    <label class="campo">
+                      <span class="campo__etq">Estado</span>
+                      <select x-model="estado" @change="guardarEstado()">
+                        {ESTADOS.map((e) => <option value={e.id}>{e.nombre}</option>)}
+                      </select>
+                    </label>
+
+                    <div x-show="estado === 'enviado'" x-cloak>
+                      <label class="campo">
+                        <span class="campo__etq">Courier</span>
+                        <input type="text" x-model="courier" placeholder="Olva, Shalom…" @change="guardarEstado()" />
+                      </label>
+                      <label class="campo">
+                        <span class="campo__etq">Código de seguimiento</span>
+                        <input type="text" x-model="seguimiento" @change="guardarEstado()" />
+                      </label>
+                    </div>
+
+                    <label class="campo">
+                      <span class="campo__etq">Nota interna</span>
+                      <textarea x-model="nota" rows="3" @change="guardarNota()" placeholder="Solo la ves tú"></textarea>
+                    </label>
+
+                    <p class="guardado" x-show="mensaje" x-text="mensaje" x-cloak></p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
-
-        <table class="tabla">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Categoría</th>
-              <th>Precio</th>
-              <th>Stock</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {
-              lista.map((p) => (
-                <tr
-                  x-show={`'${p.nombre.toLowerCase().replace(/'/g, '')}'.includes(filtro.toLowerCase())`}
-                >
-                  <td>
-                    <a href={`/producto/${p.slug}`}>{p.nombre}</a>
-                    <span class="tabla__sub">{p.presentacion}</span>
-                  </td>
-                  <td>{p.categoriaNombre}</td>
-                  <td>S/ {p.precio.toFixed(2)}</td>
-                  <td>
-                    <span class={p.stock <= 12 ? 'stock stock--bajo' : 'stock'}>{p.stock}</span>
-                  </td>
-                  <td>
-                    <span class={`estado ${p.activo ? 'estado--activo' : 'estado--inactivo'}`}>
-                      {p.activo ? 'activo' : 'inactivo'}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            }
-          </tbody>
-        </table>
-      </section>
-
-      <section class="pendiente">
-        <p class="kicker">Lo que falta en este panel</p>
-        <ul>
-          <li>Crear, editar y desactivar productos (etapa 6)</li>
-          <li>Ver también los productos inactivos: la API pública solo devuelve los activos</li>
-          <li>Cambiar el estado de un pedido y avisar al cliente</li>
-          <li>Subir fotos reales de producto</li>
-          <li>Login con JWT y sesión persistente</li>
-        </ul>
-      </section>
-    </section>
-  </div>
-</Base>
+      </>
+    )
+  }
+</Admin>
 
 <style>
-  .admin {
-    padding-block: 3rem 4rem;
-  }
-
-  /* Acceso */
   .acceso {
-    max-width: 420px;
-    margin-inline: auto;
-    padding-block: 2rem;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
   }
 
-  .acceso .kicker {
-    margin-bottom: 0.6rem;
+  .acceso__sello {
+    margin: 0 auto 1rem;
+  }
+
+  .acceso__t {
+    font-size: 1.6rem;
   }
 
   .acceso__d {
     color: var(--tinta-suave);
-    margin-block: 0.6rem 1.8rem;
+    font-size: 0.92rem;
+    margin-bottom: 1.6rem;
   }
 
   .acceso__form {
-    border-top: 2px solid var(--salvia);
-    padding-top: 1.4rem;
+    text-align: left;
   }
 
-  .maqueta {
-    font-size: 0.82rem;
-    color: var(--tinta-suave);
-    background: var(--papel);
-    border-left: 3px solid var(--henna);
-    padding: 0.9rem 1rem;
-    margin-top: 1.5rem;
+  .acceso__error {
+    color: var(--rojo);
+    font-size: 0.86rem;
+    margin: 0.8rem 0 0;
+    text-align: center;
   }
 
-  .maqueta--barra {
-    margin-block: 0 2rem;
-  }
-
-  /* Tablero */
-  .admin__cab {
+  .cab {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 2rem;
-    border-bottom: 1px solid var(--linea-fuerte);
-    padding-bottom: 1.2rem;
-    margin-bottom: 1.5rem;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.8rem;
   }
 
-  .admin__cab .kicker {
-    margin-bottom: 0.5rem;
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
   }
 
-  .salir {
+  .aviso-api {
+    border-left: 3px solid var(--rojo);
+    padding-left: 0.9rem;
+    color: var(--rojo);
+    font-size: 0.9rem;
+  }
+
+  .filtros {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.6rem;
+  }
+
+  .filtros .campo {
+    margin-bottom: 0;
+    flex: 1 1 200px;
+  }
+
+  .filtros__limpiar {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    border-bottom: 1px solid currentColor;
+  }
+
+  .vacio {
+    color: var(--tinta-suave);
+    border: 1px dashed var(--linea-fuerte);
+    border-radius: var(--radio);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+  }
+
+  .lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .pedido {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1rem 1.2rem;
+  }
+
+  .pedido__cab {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 1.2rem;
+  }
+
+  .pedido__numero {
+    font-family: var(--titular);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .pedido__fecha {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin: 0;
+  }
+
+  .pedido__total {
+    font-family: var(--titular);
+    font-size: 1.1rem;
+    margin: 0;
+  }
+
+  .pedido__abrir {
     background: none;
     border: 1px solid var(--linea-fuerte);
     border-radius: var(--radio);
-    padding: 0.5rem 0.9rem;
-    font-size: 0.72rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  .pedido__abrir:hover {
+    border-color: var(--salvia);
+    color: var(--salvia);
+  }
+
+  .pedido__cliente {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    margin-top: 0.5rem;
+  }
+
+  .pedido__cliente a:hover {
+    color: var(--salvia);
+  }
+
+  .pedido__cuerpo {
+    border-top: 1px solid var(--linea);
+    margin-top: 1rem;
+    padding-top: 1.2rem;
+  }
+
+  .etiqueta {
+    font-size: 0.7rem;
     font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 3px;
+    border: 1px solid currentColor;
+    color: var(--tinta-suave);
+    white-space: nowrap;
+  }
+
+  .etiqueta--nuevo {
+    color: var(--henna);
+  }
+
+  .etiqueta--pago_confirmado,
+  .etiqueta--preparando {
+    color: var(--salvia);
+  }
+
+  .etiqueta--enviado {
+    color: var(--jade);
+  }
+
+  .etiqueta--entregado {
+    color: var(--salvia-osc);
+    background: var(--papel);
+  }
+
+  .etiqueta--cancelado,
+  .etiqueta--no_concretado {
+    color: var(--rojo);
+  }
+
+  .detalle {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 2rem;
+  }
+
+  .detalle__t {
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    margin-bottom: 0.8rem;
+  }
+
+  .detalle__items {
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+    font-size: 0.9rem;
+  }
+
+  .detalle__items li,
+  .detalle__cuenta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0;
+    padding: 0.3rem 0;
+  }
+
+  .detalle__cuenta {
+    font-size: 0.9rem;
+    color: var(--tinta-suave);
+  }
+
+  .detalle__cuenta--total {
+    border-top: 1px solid var(--linea);
+    margin-top: 0.4rem;
+    padding-top: 0.5rem;
+    font-family: var(--titular);
+    font-size: 1.05rem;
+    color: var(--cafe);
+  }
+
+  .detalle__datos {
+    margin: 0 0 1rem;
+    font-size: 0.88rem;
+  }
+
+  .detalle__datos div {
+    margin-bottom: 0.6rem;
+  }
+
+  .detalle__datos dt {
+    font-size: 0.7rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--tinta-suave);
   }
 
-  .salir:hover {
-    border-color: var(--henna);
-    color: var(--henna);
+  .detalle__datos dd {
+    margin: 0.1rem 0 0;
   }
 
-  .metricas {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-  }
-
-  .metrica {
-    border-top: 2px solid var(--salvia);
-    padding-top: 1rem;
-  }
-
-  .metrica__n {
-    font-family: var(--titular);
-    font-size: 2.3rem;
-    font-weight: 600;
-    line-height: 1;
-    margin: 0 0 0.5rem;
-    color: var(--salvia);
-  }
-
-  .metrica__e {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    margin: 0 0 0.3rem;
-  }
-
-  .metrica__d {
+  .guardado {
     font-size: 0.82rem;
-    color: var(--tinta-suave);
+    color: var(--salvia);
     margin: 0;
   }
 
-  .panel {
-    margin-bottom: 3rem;
-  }
-
-  .panel .cabecera-seccion {
-    margin-bottom: 1.2rem;
-  }
-
-  .buscar-admin input {
-    font: inherit;
-    font-size: 0.86rem;
-    padding: 0.45rem 0.7rem;
-    border: 1px solid var(--linea-fuerte);
-    background: #fff;
-    border-radius: var(--radio);
-    min-width: 220px;
-  }
-
-  .tabla {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-  }
-
-  .tabla th {
-    text-align: left;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--tinta-suave);
-    border-bottom: 2px solid var(--salvia);
-    padding: 0 0.6rem 0.6rem;
-  }
-
-  .tabla td {
-    padding: 0.75rem 0.6rem;
-    border-bottom: 1px solid var(--linea);
-    vertical-align: top;
-  }
-
-  .tabla td:first-child,
-  .tabla th:first-child {
-    padding-left: 0;
-  }
-
-  .tabla a:hover {
-    color: var(--salvia);
-    text-decoration: underline;
-  }
-
-  .tabla__sub {
-    display: block;
-    font-size: 0.76rem;
-    color: var(--tinta-suave);
-  }
-
-  .tabla__nuevo td {
-    background: #eef3ef;
-  }
-
-  .stock {
-    font-family: var(--titular);
-    font-size: 1rem;
-    font-weight: 600;
-  }
-
-  .stock--bajo {
-    color: var(--henna);
-  }
-
-  .estado {
-    display: inline-block;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.5rem;
-    border: 1px solid currentColor;
-    border-radius: 3px;
-  }
-
-  .estado--activo,
-  .estado--entregado {
-    color: var(--salvia);
-  }
-
-  .estado--inactivo {
-    color: var(--tinta-suave);
-  }
-
-  .estado--pendiente,
-  .estado--en-camino {
-    color: var(--henna);
-  }
-
-  .pendiente {
-    border-top: 1px solid var(--linea-fuerte);
-    padding-top: 1.4rem;
-  }
-
-  .pendiente ul {
-    margin: 0.9rem 0 0;
-    padding-left: 1.1rem;
-    color: var(--tinta-suave);
-    font-size: 0.92rem;
-  }
-
-  .pendiente li {
-    padding: 0.25rem 0;
-  }
-
-  @media (max-width: 900px) {
-    .metricas {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .tabla {
-      display: block;
-      overflow-x: auto;
-      white-space: nowrap;
-    }
-  }
-
-  @media (max-width: 560px) {
-    .metricas {
-      grid-template-columns: 1fr;
-    }
-    .admin__cab {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
+  @media (max-width: 700px) {
+    .pedido__cab {
+      grid-template-columns: 1fr auto;
+      row-gap: 0.6rem;
     }
   }
 </style>

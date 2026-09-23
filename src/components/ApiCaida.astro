@@ -1,7 +1,11 @@
 ---
 // Se muestra cuando la API no responde: mejor un aviso con salida por
 // WhatsApp que una página en blanco o un error 500.
-import { tienda, waLink } from '../data/tienda.js';
+import { waLink as enlaceWa } from '../lib/tienda.js';
+
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
+const waLink = (mensaje) => enlaceWa(tienda, mensaje);
 
 const { error } = Astro.props;
 const esDesarrollo = import.meta.env.DEV;

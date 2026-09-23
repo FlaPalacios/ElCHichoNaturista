@@ -22,7 +22,15 @@ def listar_productos(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     categoria: Annotated[
         str | None,
-        Query(description="Slug de la categoría, por ejemplo `suplementos`.", max_length=100),
+        Query(description="Slug de la categoría, por ejemplo `abarrotes`.", max_length=100),
+    ] = None,
+    subcategoria: Annotated[
+        str | None,
+        Query(description="Slug de la subcategoría, por ejemplo `cafe-y-cacao`.", max_length=100),
+    ] = None,
+    marca: Annotated[
+        str | None,
+        Query(description="Slug de la marca, por ejemplo `henna-colors`.", max_length=100),
     ] = None,
     precio_min: Annotated[
         Decimal | None, Query(ge=0, description="Precio mínimo en soles.")
@@ -61,6 +69,8 @@ def listar_productos(
     return crud.listar_productos(
         sesion,
         categoria=categoria,
+        subcategoria=subcategoria,
+        marca=marca,
         precio_min=precio_min,
         precio_max=precio_max,
         q=q,

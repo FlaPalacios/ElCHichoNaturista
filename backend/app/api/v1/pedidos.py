@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import crud
-from app.config import ajustes
+from app import tienda as ajustes_tienda
 from app.database import obtener_sesion
 from app.schemas import PedidoCrear, PedidoOut
 
@@ -21,29 +21,24 @@ router = APIRouter(prefix="/pedidos", tags=["pedidos"])
 )
 def crear_pedido(payload: PedidoCrear, sesion: Annotated[Session, Depends(obtener_sesion)]):
     """Recalcula precios y envío desde la base: nunca confía en lo que manda el cliente."""
-    if payload.entrega == "delivery" and (not payload.direccion or not payload.distrito):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Para delivery hace falta dirección y distrito.",
-        )
-
     try:
         pedido = crud.crear_pedido(
             sesion,
             nombre_contacto=payload.nombre_contacto,
             telefono_contacto=payload.telefono_contacto,
             correo=payload.correo,
-            entrega=payload.entrega,
             direccion=payload.direccion,
-            distrito=payload.distrito,
+            ubigeo=payload.ubigeo,
             referencia=payload.referencia,
-            metodo_pago=payload.metodo_pago,
             nota=payload.nota,
             items=[(i.producto_id, i.cantidad) for i in payload.items],
-            costo_envio_lima=ajustes.envio_costo_lima,
-            envio_gratis_desde=ajustes.envio_gratis_desde,
+            envio_gratis_desde=ajustes_tienda.numero(sesion, "envio_gratis_desde"),
         )
-    except (crud.ProductoNoDisponible, crud.StockInsuficiente) as error:
+    except (
+        crud.ProductoNoDisponible,
+        crud.StockInsuficiente,
+        crud.DestinoNoValido,
+    ) as error:
         sesion.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)

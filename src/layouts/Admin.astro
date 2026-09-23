@@ -1,0 +1,204 @@
+---
+// Layout del panel interno. A propósito no trae nada de la tienda: ni
+// encabezado, ni pie, ni carrito, ni el botón flotante de WhatsApp. Solo la
+// hoja de estilos de marca, para que se vea de la misma familia.
+import '../styles/global.css';
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
+
+const { title, seccion = '', sesion = false } = Astro.props;
+
+const secciones = [
+  { id: 'pedidos', nombre: 'Pedidos', href: '/admin' },
+  { id: 'productos', nombre: 'Productos', href: '/admin/productos' },
+  { id: 'categorias', nombre: 'Categorías', href: '/admin/categorias' },
+  { id: 'configuracion', nombre: 'Configuración', href: '/admin/configuracion' },
+  { id: 'dashboard', nombre: 'Resumen', href: '/admin/resumen' },
+  { id: 'clientes', nombre: 'Clientes', href: '/admin/clientes' },
+];
+---
+
+<!doctype html>
+<html lang="es-PE">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · Panel {tienda.nombre}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/hind-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/amulya-400.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+
+  <body class="panel-body">
+    {
+      sesion ? (
+        <div class="marco">
+          <aside class="lateral">
+            <a href="/" class="lateral__marca">
+              <img src="/logo-1.png" alt="" width="40" height="40" />
+              <span>
+                <strong>El Chico Naturista</strong>
+                <em>Panel interno</em>
+              </span>
+            </a>
+
+            <nav class="lateral__nav" aria-label="Secciones del panel">
+              {secciones.map((s) => (
+                <a
+                  href={s.href}
+                  class:list={['lateral__enlace', seccion === s.id && 'lateral__enlace--activo']}
+                  aria-current={seccion === s.id ? 'page' : undefined}
+                >
+                  {s.nombre}
+                </a>
+              ))}
+            </nav>
+
+            <form method="post" action="/admin/salir" class="lateral__salir">
+              <button type="submit">Cerrar sesión</button>
+            </form>
+          </aside>
+
+          <main class="contenido">
+            <slot />
+          </main>
+        </div>
+      ) : (
+        <main class="entrada">
+          <slot />
+        </main>
+      )
+    }
+  </body>
+</html>
+
+<style is:global>
+  .panel-body {
+    background: var(--fondo);
+  }
+</style>
+
+<style>
+  .marco {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    min-height: 100vh;
+  }
+
+  .lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    background: var(--salvia);
+    color: var(--sobre-salvia);
+    padding: 1.6rem 1.2rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .lateral__marca {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .lateral__marca span {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .lateral__marca strong {
+    font-family: var(--titular);
+    font-size: 0.96rem;
+    color: var(--claro);
+  }
+
+  .lateral__marca em {
+    font-style: normal;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sobre-salvia-suave);
+  }
+
+  .lateral__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .lateral__enlace {
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radio);
+    font-size: 0.92rem;
+    color: var(--sobre-salvia-suave);
+  }
+
+  .lateral__enlace:hover {
+    background: var(--linea-salvia);
+    color: var(--claro);
+  }
+
+  .lateral__enlace--activo {
+    background: var(--claro);
+    color: var(--salvia-osc);
+    font-weight: 700;
+  }
+
+  .lateral__salir {
+    margin-top: auto;
+  }
+
+  .lateral__salir button {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--linea-salvia);
+    border-radius: var(--radio);
+    color: var(--sobre-salvia-suave);
+    padding: 0.55rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .lateral__salir button:hover {
+    border-color: var(--claro);
+    color: var(--claro);
+  }
+
+  .contenido {
+    padding: 2rem clamp(1.2rem, 3vw, 2.6rem) 4rem;
+    min-width: 0;
+  }
+
+  .entrada {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1.2rem;
+  }
+
+  @media (max-width: 800px) {
+    .marco {
+      grid-template-columns: 1fr;
+    }
+
+    .lateral {
+      position: static;
+      height: auto;
+      gap: 1.2rem;
+    }
+
+    .lateral__nav {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    .lateral__salir {
+      margin-top: 0;
+    }
+  }
+</style>

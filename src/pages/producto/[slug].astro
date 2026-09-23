@@ -1,10 +1,11 @@
 ---
 import Base from '../../layouts/Base.astro';
-import Etiqueta from '../../components/Etiqueta.astro';
+import FotoProducto from '../../components/FotoProducto.astro';
 import ProductoCard from '../../components/ProductoCard.astro';
 import ApiCaida from '../../components/ApiCaida.astro';
 import { obtenerProducto, obtenerProductos } from '../../lib/api.js';
-import { waLink } from '../../data/tienda.js';
+import { urlCloudinary } from '../../lib/cloudinary.js';
+import { waLink as enlaceWa } from '../../lib/tienda.js';
 
 // SSR: la ficha se arma en cada visita, así el stock y el precio están al día.
 const { slug } = Astro.params;
@@ -28,6 +29,8 @@ const cat = producto
   : { slug: '', nombre: '' };
 const oferta = Boolean(producto?.precioAntes);
 const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
+const fotos = producto?.imagenes ?? [];
+const waLink = (mensaje) => enlaceWa(Astro.locals.tienda, mensaje);
 
 let relacionados = [];
 if (producto) {
@@ -72,21 +75,59 @@ const consulta = producto
   </nav>
 
   <article class="env producto" x-data={`{ p: ${JSON.stringify(paraCarrito)}, cant: 1 }`}>
-    <div class="producto__vista">
+    <div class="producto__vista" x-data="{ activa: 0 }">
       <div class="producto__lamina">
-        <Etiqueta producto={producto} alto={true} />
+        {
+          fotos.length > 0 ? (
+            fotos.map((foto, i) => (
+              <img
+                class="producto__foto"
+                x-show={`activa === ${i}`}
+                src={urlCloudinary(foto.url, 700)}
+                srcset={[500, 700, 1000]
+                  .map((w) => `${urlCloudinary(foto.url, w)} ${w}w`)
+                  .join(', ')}
+                sizes="(max-width: 900px) 92vw, 520px"
+                alt={`${producto.nombre}${foto.tipo ? ` — ${foto.tipo}` : ''}`}
+                width="700"
+                height="840"
+                loading={i === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+              />
+            ))
+          ) : (
+            <FotoProducto producto={producto} alto={true} />
+          )
+        }
         {oferta && <span class="producto__oferta">−{dto}%</span>}
       </div>
-      <p class="producto__pie-vista">
-        Ilustración de referencia · el envase puede variar según el lote
-      </p>
+
+      {
+        fotos.length > 1 && (
+          <div class="miniaturas">
+            {fotos.map((foto, i) => (
+              <button
+                type="button"
+                class="miniaturas__btn"
+                :class={`{ 'miniaturas__btn--activa': activa === ${i} }`}
+                @click={`activa = ${i}`}
+                aria-label={`Ver foto ${foto.tipo ?? i + 1}`}
+              >
+                <img src={urlCloudinary(foto.url, 160)} alt="" width="80" height="96" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        )
+      }
     </div>
 
     <div class="producto__datos">
       <p class="producto__cat">
-        <a href={`/catalogo?categoria=${cat.slug}`}>{cat.nombre}</a>
+        <a href={`/catalogo?subcategoria=${producto.subcategoria}`}>
+          {producto.subcategoriaNombre}
+        </a>
         <span>·</span>
-        {producto.origen}
+        <a href={`/catalogo?marca=${producto.marca}`}>{producto.marcaNombre}</a>
       </p>
 
       <h1 class="producto__nombre">{producto.nombre}</h1>
@@ -152,9 +193,9 @@ const consulta = producto
         <summary>Ficha corta</summary>
         <dl class="ficha-datos">
           <div><dt>Presentación</dt><dd>{producto.presentacion}</dd></div>
-          <div><dt>Origen</dt><dd>{producto.origen}</dd></div>
-          <div><dt>Departamento</dt><dd>{cat.nombre}</dd></div>
-          <div><dt>Código</dt><dd>ECN-{producto.id}</dd></div>
+          <div><dt>Marca</dt><dd>{producto.marcaNombre}</dd></div>
+          <div><dt>Categoría</dt><dd>{cat.nombre} · {producto.subcategoriaNombre}</dd></div>
+          <div><dt>Código</dt><dd>{producto.codigo}</dd></div>
         </dl>
       </details>
     </div>
@@ -169,7 +210,6 @@ const consulta = producto
               <p class="kicker">Del mismo estante</p>
               <h2 class="titulo">También en {cat.nombre.toLowerCase()}</h2>
             </div>
-            <span class="cabecera-seccion__linea" />
             <a href={`/catalogo?categoria=${cat.slug}`} class="enlace-mas">
               Ver el departamento
             </a>
@@ -233,8 +273,10 @@ const consulta = producto
     background: var(--papel);
   }
 
-  .producto__lamina :global(svg) {
+  .producto__foto {
+    width: 100%;
     height: 100%;
+    object-fit: cover;
   }
 
   .producto__oferta {
@@ -250,11 +292,34 @@ const consulta = producto
     padding: 0.3rem 0.6rem;
   }
 
-  .producto__pie-vista {
-    font-size: 0.74rem;
-    color: var(--tinta-suave);
-    margin: 0.6rem 0 0;
-    text-align: right;
+  .miniaturas {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+  }
+
+  .miniaturas__btn {
+    width: 68px;
+    aspect-ratio: 4 / 5;
+    padding: 0;
+    border: 1px solid var(--linea-fuerte);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--papel);
+    opacity: 0.6;
+    transition: opacity 0.2s, border-color 0.2s;
+  }
+
+  .miniaturas__btn:hover,
+  .miniaturas__btn--activa {
+    opacity: 1;
+    border-color: var(--salvia);
+  }
+
+  .miniaturas__btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .producto__cat {

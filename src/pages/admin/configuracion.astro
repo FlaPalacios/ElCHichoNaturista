@@ -1,0 +1,278 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+if (!yo) return Astro.redirect('/admin');
+
+const [ajustes, tarifas] = await Promise.all([
+  traer('/configuracion', token),
+  traer('/tarifas', token),
+]);
+
+const valores = Object.fromEntries((ajustes ?? []).map((a) => [a.clave, a.valor]));
+
+// Cómo se presenta cada ajuste. El orden de acá es el orden en pantalla.
+const GRUPOS = [
+  {
+    titulo: 'Datos de la tienda',
+    nota: 'Aparecen en el encabezado, el pie y los mensajes de WhatsApp.',
+    campos: [
+      { clave: 'nombre', etiqueta: 'Nombre' },
+      { clave: 'lema', etiqueta: 'Lema' },
+      { clave: 'direccion', etiqueta: 'Dirección' },
+      { clave: 'horario', etiqueta: 'Horario' },
+      { clave: 'correo', etiqueta: 'Correo' },
+    ],
+  },
+  {
+    titulo: 'WhatsApp y redes',
+    nota: 'El número va en formato internacional, sin + ni espacios.',
+    campos: [
+      { clave: 'whatsapp', etiqueta: 'WhatsApp (para los enlaces)', ayuda: 'Ej.: 51946049689' },
+      { clave: 'whatsapp_visible', etiqueta: 'WhatsApp (como se muestra)' },
+      { clave: 'instagram', etiqueta: 'Instagram' },
+      { clave: 'facebook', etiqueta: 'Facebook' },
+    ],
+  },
+  {
+    titulo: 'Mensajes',
+    nota: 'El cintillo va rotando los avisos, uno por línea.',
+    campos: [
+      {
+        clave: 'plantilla_whatsapp',
+        etiqueta: 'Primera línea del pedido por WhatsApp',
+        ayuda: '{tienda} y {numero} se reemplazan solos.',
+        largo: true,
+      },
+      {
+        clave: 'metodos_pago',
+        etiqueta: 'Formas de pago (texto del checkout)',
+        largo: true,
+      },
+      { clave: 'avisos', etiqueta: 'Avisos del cintillo', largo: true, lineas: 4 },
+    ],
+  },
+  {
+    titulo: 'Ventas',
+    nota: 'Reglas que usan la tienda y el panel.',
+    campos: [
+      {
+        clave: 'envio_gratis_desde',
+        etiqueta: 'Envío gratis desde (S/)',
+        ayuda: 'Se aplica en todo el Perú.',
+        numero: true,
+      },
+      {
+        clave: 'stock_bajo',
+        etiqueta: 'Avisar cuando el stock llegue a',
+        ayuda: 'En unidades.',
+        numero: true,
+      },
+    ],
+  },
+];
+
+const listaTarifas = tarifas ?? [];
+---
+
+<Admin title="Configuración" seccion="configuracion" sesion={true}>
+  <header class="cab">
+    <div>
+      <p class="kicker">Panel</p>
+      <h1 class="titulo">Configuración</h1>
+    </div>
+    <p class="cab__resumen">
+      Lo que cambies acá se ve en la tienda enseguida, sin recompilar nada.
+    </p>
+  </header>
+
+  <div class="columnas" x-data={`configuracionAdmin(${JSON.stringify(valores)})`}>
+    <form class="ajustes" @submit.prevent="guardar()">
+      {
+        GRUPOS.map((g) => (
+          <section class="grupo">
+            <h2 class="subtitulo">{g.titulo}</h2>
+            <p class="grupo__nota">{g.nota}</p>
+
+            {g.campos.map((c) => (
+              <label class="campo">
+                <span class="campo__etq">{c.etiqueta}</span>
+                {c.largo ? (
+                  <textarea x-model={`valores.${c.clave}`} rows={c.lineas ?? 2}></textarea>
+                ) : (
+                  <input
+                    type={c.numero ? 'number' : 'text'}
+                    step={c.numero ? '1' : undefined}
+                    min={c.numero ? '0' : undefined}
+                    x-model={`valores.${c.clave}`}
+                  />
+                )}
+                {c.ayuda && <span class="campo__ayuda">{c.ayuda}</span>}
+              </label>
+            ))}
+          </section>
+        ))
+      }
+
+      <div class="ajustes__pie">
+        <button class="btn" type="submit" :disabled="guardando">
+          <span x-text="guardando ? 'Guardando…' : 'Guardar cambios'">Guardar cambios</span>
+        </button>
+        <p class="mensaje" x-show="mensaje" x-text="mensaje" :class="error && 'mensaje--error'" x-cloak></p>
+      </div>
+    </form>
+
+    <!-- ── Tarifas de envío ─────────────────────────────────── -->
+    <section class="grupo">
+      <h2 class="subtitulo">Costos de envío</h2>
+      <p class="grupo__nota">
+        Una fila por departamento. Lima capital tiene su propia fila porque cobra distinto
+        que el resto del departamento. Se guarda al salir del campo.
+      </p>
+
+      <ul class="tarifas">
+        {
+          listaTarifas.map((t) => (
+            <li x-data={`tarifaFila(${JSON.stringify({ id: t.id, costo: Number(t.costo) })})`}>
+              <span>
+                {t.departamento}
+                {t.provincia && <span class="pista">solo la provincia de {t.provincia}</span>}
+              </span>
+              <span class="tarifas__campo">
+                S/
+                <input type="number" min="0" step="0.50" x-model.number="costo" @change="guardar()" />
+                <span class="tarifas__ok" x-show="guardado" x-cloak>✓</span>
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </div>
+</Admin>
+
+<style>
+  .cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.8rem;
+  }
+
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 40ch;
+  }
+
+  .columnas {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .grupo {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1.2rem 1.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .grupo .subtitulo {
+    font-size: 1.1rem;
+  }
+
+  .grupo__nota {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+    margin: 0.2rem 0 1.1rem;
+  }
+
+  .campo__ayuda {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+    margin-top: 0.25rem;
+  }
+
+  .ajustes__pie {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    position: sticky;
+    bottom: 0;
+    background: var(--fondo);
+    padding: 0.8rem 0;
+  }
+
+  .mensaje {
+    font-size: 0.88rem;
+    color: var(--salvia);
+    margin: 0;
+  }
+
+  .mensaje--error {
+    color: var(--rojo);
+  }
+
+  .tarifas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .tarifas li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+    font-size: 0.9rem;
+  }
+
+  .pista {
+    display: block;
+    font-size: 0.74rem;
+    color: var(--tinta-suave);
+  }
+
+  .tarifas__campo {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--tinta-suave);
+    font-size: 0.82rem;
+  }
+
+  .tarifas__campo input {
+    width: 78px;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    font: inherit;
+    color: var(--tinta);
+  }
+
+  .tarifas__ok {
+    color: var(--salvia);
+  }
+
+  @media (max-width: 900px) {
+    .columnas {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

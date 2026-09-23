@@ -1,5 +1,6 @@
 ---
-import { tienda } from '../data/tienda.js';
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
 ---
 
 <!-- Panel lateral del carrito. Vive en el layout, así está disponible en
@@ -28,7 +29,7 @@ import { tienda } from '../data/tienda.js';
     </header>
 
     <div class="panel__aviso" x-show="!$store.carrito.vacio && !$store.carrito.envioGratis">
-      Te faltan <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> para el envío gratis en Lima.
+      Te faltan <strong x-text="$store.carrito.soles($store.carrito.faltaParaEnvioGratis)"></strong> para el envío gratis.
     </div>
     <div class="panel__aviso panel__aviso--ok" x-show="$store.carrito.envioGratis && !$store.carrito.vacio">
       Tienes envío gratis en Lima.
@@ -88,12 +89,12 @@ import { tienda } from '../data/tienda.js';
           <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
         </div>
         <div>
-          <dt>Envío (Lima)</dt>
-          <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : $store.carrito.soles($store.carrito.envio)"></dd>
+          <dt>Envío</dt>
+          <dd x-text="$store.carrito.envio === 0 ? 'Gratis' : 'Según tu distrito'"></dd>
         </div>
         <div class="cuentas__total">
-          <dt>Total</dt>
-          <dd x-text="$store.carrito.soles($store.carrito.total)"></dd>
+          <dt>Total sin envío</dt>
+          <dd x-text="$store.carrito.soles($store.carrito.subtotal)"></dd>
         </div>
       </dl>
       <a href="/checkout" class="btn btn--bloque">Finalizar pedido</a>
@@ -112,7 +113,7 @@ import { tienda } from '../data/tienda.js';
   .velo {
     position: fixed;
     inset: 0;
-    background: rgba(33, 66, 58, 0.35);
+    background: color-mix(in srgb, var(--salvia-osc) 35%, transparent);
     z-index: 80;
   }
 
@@ -163,8 +164,8 @@ import { tienda } from '../data/tienda.js';
   .panel__aviso {
     padding: 0.7rem 1.5rem;
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
-    border-bottom: 1px solid rgba(33, 30, 30, 0.12);
+    color: var(--cafe-texto);
+    border-bottom: 1px solid var(--cafe-linea);
     font-size: 0.84rem;
   }
 
@@ -282,14 +283,14 @@ import { tienda } from '../data/tienda.js';
 
   .linea__quitar:hover {
     color: var(--rojo);
-    background: rgba(192, 57, 43, 0.08);
+    background: color-mix(in srgb, var(--rojo) 8%, transparent);
   }
 
   .panel__pie {
-    border-top: 1px solid rgba(33, 30, 30, 0.12);
+    border-top: 1px solid var(--cafe-linea);
     padding: 1.2rem 1.5rem 1.5rem;
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
+    color: var(--cafe-texto);
   }
 
   .cuentas {
@@ -309,7 +310,7 @@ import { tienda } from '../data/tienda.js';
   }
 
   .cuentas__total {
-    border-top: 1px solid rgba(33, 30, 30, 0.18);
+    border-top: 1px solid var(--cafe-linea);
     margin-top: 0.5rem;
     padding-top: 0.6rem !important;
     font-family: var(--titular);
@@ -331,7 +332,7 @@ import { tienda } from '../data/tienda.js';
 
   .panel__nota {
     font-size: 0.76rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin: 0.9rem 0 0;
     text-align: center;
   }
@@ -344,7 +345,7 @@ import { tienda } from '../data/tienda.js';
     z-index: 95;
     border-radius: var(--radio);
     background: var(--cafe);
-    color: #f2efe6;
+    color: var(--claro);
     font-size: 0.8rem;
     letter-spacing: 0.08em;
     padding: 0.7rem 1.2rem;

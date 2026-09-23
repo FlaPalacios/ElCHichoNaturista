@@ -15,7 +15,7 @@ export const tienda = {
   avisos: [
     'Envíos a todo el Perú · Delivery el mismo día en Lima',
     'Pedidos coordinados por WhatsApp, sin pasarela de pago',
-    'Envío gratis en Lima desde S/ 120',
+    'Envío gratis en todo el Perú desde S/ 120',
   ],
 };
 

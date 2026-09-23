@@ -2,15 +2,20 @@
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
 import ApiCaida from '../components/ApiCaida.astro';
-import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
+import { obtenerCategorias, obtenerMarcas, obtenerProductos } from '../lib/api.js';
 
 // El filtrado sigue siendo instantáneo en el navegador (Alpine): traemos el
 // catálogo entero una vez y los filtros no vuelven a pegarle a la API.
 let lista = [];
 let categorias = [];
+let marcas = [];
 let fallo = null;
 try {
-  [lista, categorias] = await Promise.all([obtenerProductos(), obtenerCategorias()]);
+  [lista, categorias, marcas] = await Promise.all([
+    obtenerProductos(),
+    obtenerCategorias(),
+    obtenerMarcas(),
+  ]);
 } catch (error) {
   fallo = error;
 }
@@ -20,22 +25,22 @@ const precioTope = lista.length ? Math.ceil(Math.max(...lista.map((p) => p.preci
 const meta = lista.map((p) => ({
   id: p.id,
   nombre: p.nombre,
-  busqueda: `${p.nombre} ${p.descripcionCorta} ${p.origen} ${p.presentacion}`.toLowerCase(),
+  busqueda: `${p.nombre} ${p.descripcionCorta} ${p.marcaNombre} ${p.presentacion}`.toLowerCase(),
   categoria: p.categoria,
+  subcategoria: p.subcategoria,
+  marca: p.marca,
   precio: p.precio,
   oferta: Boolean(p.precioAntes),
   vendido: Boolean(p.masVendido),
   destacado: Boolean(p.destacado),
 }));
 
-const conteo = Object.fromEntries(
-  categorias.map((c) => [c.slug, lista.filter((p) => p.categoria === c.slug).length])
-);
+const cuantos = (campo, valor) => lista.filter((p) => p[campo] === valor).length;
 ---
 
 <Base
   title="Catálogo"
-  description="Todo el catálogo de El Chico Naturista: henna, suplementos, aceites esenciales y superalimentos peruanos."
+  description="Todo el catálogo de El Chico Naturista: henna, aceites, superalimentos, lácteos y kéfir."
   activo="catalogo"
 >
   {fallo && <ApiCaida error={fallo} />}
@@ -45,6 +50,8 @@ const conteo = Object.fromEntries(
     x-data={`{
       q: '',
       cats: [],
+      subs: [],
+      marcas: [],
       hasta: ${precioTope},
       soloOferta: false,
       orden: 'destacados',
@@ -54,6 +61,8 @@ const conteo = Object.fromEntries(
         const u = new URLSearchParams(location.search);
         if (u.get('q')) this.q = u.get('q');
         if (u.get('categoria')) this.cats = [u.get('categoria')];
+        if (u.get('subcategoria')) this.subs = [u.get('subcategoria')];
+        if (u.get('marca')) this.marcas = [u.get('marca')];
         if (u.get('orden')) this.orden = u.get('orden');
       },
       get filtrados() {
@@ -61,6 +70,8 @@ const conteo = Object.fromEntries(
         let r = this.items.filter(i =>
           (!t || i.busqueda.includes(t)) &&
           (this.cats.length === 0 || this.cats.includes(i.categoria)) &&
+          (this.subs.length === 0 || this.subs.includes(i.subcategoria)) &&
+          (this.marcas.length === 0 || this.marcas.includes(i.marca)) &&
           i.precio <= this.hasta &&
           (!this.soloOferta || i.oferta)
         );
@@ -76,14 +87,14 @@ const conteo = Object.fromEntries(
       },
       get ids() { return this.filtrados.map(i => i.id) },
       posicion(id) { const k = this.ids.indexOf(id); return k === -1 ? 999 : k },
-      limpiar() { this.q = ''; this.cats = []; this.hasta = this.tope; this.soloOferta = false; this.orden = 'destacados' },
-      get hayFiltros() { return this.q !== '' || this.cats.length > 0 || this.hasta < this.tope || this.soloOferta }
+      limpiar() { this.q = ''; this.cats = []; this.subs = []; this.marcas = []; this.hasta = this.tope; this.soloOferta = false; this.orden = 'destacados' },
+      get hayFiltros() { return this.q !== '' || this.cats.length > 0 || this.subs.length > 0 || this.marcas.length > 0 || this.hasta < this.tope || this.soloOferta }
     }`}
   >
     <header class="catalogo__cab">
       <div class="env catalogo__cab-env">
         <div>
-          <p class="kicker">{lista.length} productos · {categorias.length} departamentos</p>
+          <p class="kicker">{lista.length} productos · {categorias.length} categorías</p>
           <h1 class="titulo">El catálogo completo</h1>
         </div>
         <p class="catalogo__nota">
@@ -102,17 +113,41 @@ const conteo = Object.fromEntries(
           </label>
 
           <fieldset class="grupo">
-            <legend class="campo__etq">Departamento</legend>
+            <legend class="campo__etq">Categoría</legend>
             {
               categorias.map((c) => (
-                <label class="check">
-                  <input type="checkbox" value={c.slug} x-model="cats" />
-                  <span>{c.nombre}</span>
-                  <em>{conteo[c.slug]}</em>
-                </label>
+                <>
+                  <label class="check">
+                    <input type="checkbox" value={c.slug} x-model="cats" />
+                    <span>{c.nombre}</span>
+                    <em>{cuantos('categoria', c.slug)}</em>
+                  </label>
+                  {c.subcategorias.map((s) => (
+                    <label class="check check--sub">
+                      <input type="checkbox" value={s.slug} x-model="subs" />
+                      <span>{s.nombre}</span>
+                      <em>{cuantos('subcategoria', s.slug)}</em>
+                    </label>
+                  ))}
+                </>
               ))
             }
           </fieldset>
+
+          {
+            marcas.length > 1 && (
+              <fieldset class="grupo">
+                <legend class="campo__etq">Marca</legend>
+                {marcas.map((m) => (
+                  <label class="check">
+                    <input type="checkbox" value={m.slug} x-model="marcas" />
+                    <span>{m.nombre}</span>
+                    <em>{cuantos('marca', m.slug)}</em>
+                  </label>
+                ))}
+              </fieldset>
+            )
+          }
 
           <div class="grupo">
             <span class="campo__etq">Precio hasta</span>
@@ -263,6 +298,13 @@ const conteo = Object.fromEntries(
   .check--suelto {
     border-bottom: none;
     margin-bottom: 1rem;
+  }
+
+  /* Subcategoría: cuelga visualmente de su categoría. */
+  .check--sub {
+    padding-left: 1.1rem;
+    font-size: 0.88rem;
+    color: var(--tinta-suave);
   }
 
   .rango {

@@ -2,17 +2,58 @@
 
 import random
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, contains_eager, selectinload
 
-from app.models import Categoria, MetodoPago, Pedido, PedidoItem, Producto
+from app.models import (
+    Categoria,
+    Distrito,
+    EstadoPedido,
+    Marca,
+    Pedido,
+    PedidoItem,
+    Producto,
+    Subcategoria,
+    TarifaEnvio,
+)
 
 
 def listar_categorias(sesion: Session) -> list[Categoria]:
-    consulta = select(Categoria).order_by(Categoria.orden, Categoria.nombre)
+    """Categorías activas con sus subcategorías, dejando fuera las que no tienen
+    ningún producto activo. Una categoría vacía no se muestra en la tienda, pero
+    sigue en la base esperando que se cargue su mercadería."""
+    tiene_productos = (
+        select(Producto.id)
+        .where(Producto.subcategoria_id == Subcategoria.id, Producto.activo.is_(True))
+        .exists()
+    )
+    # contains_eager: `categoria.subcategorias` queda poblada solo con las filas
+    # que trajo este join, que son justo las visibles.
+    consulta = (
+        select(Categoria)
+        .join(Categoria.subcategorias)
+        .where(
+            Categoria.activo.is_(True),
+            Subcategoria.activo.is_(True),
+            tiene_productos,
+        )
+        .options(contains_eager(Categoria.subcategorias))
+        .order_by(Categoria.orden, Categoria.nombre, Subcategoria.orden)
+    )
+    return list(sesion.scalars(consulta).unique())
+
+
+def listar_marcas(sesion: Session) -> list[Marca]:
+    """Solo las que tienen algún producto activo."""
+    con_productos = select(Producto.id).where(
+        Producto.marca_id == Marca.id, Producto.activo.is_(True)
+    )
+    consulta = (
+        select(Marca).where(con_productos.exists()).order_by(Marca.orden, Marca.nombre)
+    )
     return list(sesion.scalars(consulta))
 
 
@@ -29,6 +70,8 @@ def listar_productos(
     sesion: Session,
     *,
     categoria: str | None = None,
+    subcategoria: str | None = None,
+    marca: str | None = None,
     precio_min: Decimal | None = None,
     precio_max: Decimal | None = None,
     q: str | None = None,
@@ -43,7 +86,25 @@ def listar_productos(
         consulta = consulta.where(Producto.activo.is_(True))
 
     if categoria:
-        consulta = consulta.join(Producto.categoria).where(Categoria.slug == categoria)
+        consulta = consulta.where(
+            Producto.subcategoria_id.in_(
+                select(Subcategoria.id)
+                .join(Subcategoria.categoria)
+                .where(Categoria.slug == categoria)
+            )
+        )
+
+    if subcategoria:
+        consulta = consulta.where(
+            Producto.subcategoria_id.in_(
+                select(Subcategoria.id).where(Subcategoria.slug == subcategoria)
+            )
+        )
+
+    if marca:
+        consulta = consulta.where(
+            Producto.marca_id.in_(select(Marca.id).where(Marca.slug == marca))
+        )
 
     if precio_min is not None:
         consulta = consulta.where(Producto.precio >= precio_min)
@@ -124,26 +185,59 @@ def generar_numero_pedido(sesion: Session, *, intentos: int = 20) -> str:
     raise ErrorPedido("No se pudo generar un número de pedido único.")
 
 
+class DestinoNoValido(ErrorPedido):
+    def __init__(self, ubigeo: str):
+        super().__init__(f"El distrito '{ubigeo}' no existe en el padrón del INEI.")
+
+
+def obtener_distrito(sesion: Session, ubigeo: str) -> Distrito | None:
+    return sesion.get(Distrito, ubigeo)
+
+
+def costo_envio(sesion: Session, distrito: Distrito) -> Decimal:
+    """Tarifa de la provincia si está afinada; si no, la del departamento."""
+    provincia = distrito.provincia
+    tarifas = sesion.scalars(
+        select(TarifaEnvio).where(
+            TarifaEnvio.departamento_codigo == provincia.departamento_codigo
+        )
+    ).all()
+
+    por_provincia = next(
+        (t for t in tarifas if t.provincia_codigo == provincia.codigo), None
+    )
+    if por_provincia is not None:
+        return por_provincia.costo
+
+    base = next((t for t in tarifas if t.provincia_codigo is None), None)
+    if base is None:
+        raise ErrorPedido(
+            f"No hay tarifa de envío para {provincia.departamento.nombre}."
+        )
+    return base.costo
+
+
 def crear_pedido(
     sesion: Session,
     *,
     nombre_contacto: str,
     telefono_contacto: str,
     correo: str | None,
-    entrega: str,  # "delivery" | "tienda"
-    direccion: str | None,
-    distrito: str | None,
+    direccion: str,
+    ubigeo: str,
     referencia: str | None,
-    metodo_pago: MetodoPago,
     nota: str | None,
     items: Sequence[tuple[int, int]],  # (producto_id, cantidad)
-    costo_envio_lima: Decimal,
     envio_gratis_desde: Decimal,
 ) -> Pedido:
-    """Valida stock y arma el pedido con precios reales de la base.
+    """Valida stock y arma el pedido con precios y envío reales de la base.
 
     No hace commit: eso lo decide quien llama, igual que en seed.py.
     """
+    distrito = obtener_distrito(sesion, ubigeo)
+    if distrito is None:
+        raise DestinoNoValido(ubigeo)
+
     ids = [producto_id for producto_id, _ in items]
     productos = {
         p.id: p for p in sesion.scalars(select(Producto).where(Producto.id.in_(ids)))
@@ -158,23 +252,26 @@ def crear_pedido(
             raise StockInsuficiente(producto_id, producto.nombre, producto.stock, cantidad)
         subtotal += producto.precio * cantidad
 
-    es_delivery = entrega == "delivery"
     envio = (
-        costo_envio_lima
-        if es_delivery and subtotal < envio_gratis_desde
-        else Decimal("0.00")
+        Decimal("0.00")
+        if subtotal >= envio_gratis_desde
+        else costo_envio(sesion, distrito)
     )
 
+    provincia = distrito.provincia
     pedido = Pedido(
         numero_pedido=generar_numero_pedido(sesion),
         nombre_contacto=nombre_contacto,
         telefono_contacto=telefono_contacto,
         email_contacto=correo,
-        direccion_envio=direccion if es_delivery else None,
-        distrito=distrito if es_delivery else None,
-        referencia=referencia if es_delivery else None,
-        metodo_pago=metodo_pago,
+        direccion_envio=direccion,
+        departamento=provincia.departamento.nombre,
+        provincia=provincia.nombre,
+        distrito=distrito.nombre,
+        ubigeo=distrito.codigo,
+        referencia=referencia,
         nota=nota,
+        envio=envio,
         total=subtotal + envio,
     )
     sesion.add(pedido)
@@ -200,3 +297,202 @@ def obtener_pedido_por_numero(sesion: Session, numero_pedido: str) -> Pedido | N
         .where(Pedido.numero_pedido == numero_pedido)
     )
     return sesion.scalars(consulta).unique().one_or_none()
+
+
+# ── Panel: pedidos ───────────────────────────────────────────────────
+
+# Estados en los que la mercadería ya está comprometida y el stock debe estar
+# descontado. Fuera de ellos, el stock vuelve al almacén.
+ESTADOS_CON_STOCK_TOMADO = frozenset(
+    {
+        EstadoPedido.pago_confirmado,
+        EstadoPedido.preparando,
+        EstadoPedido.enviado,
+        EstadoPedido.entregado,
+    }
+)
+
+
+def listar_pedidos(
+    sesion: Session,
+    *,
+    estado: EstadoPedido | None = None,
+    desde: date | None = None,
+    hasta: date | None = None,
+    q: str | None = None,
+) -> list[Pedido]:
+    """Los pedidos del panel, del más nuevo al más viejo."""
+    consulta = select(Pedido).options(
+        selectinload(Pedido.items).joinedload(PedidoItem.producto)
+    )
+
+    if estado is not None:
+        consulta = consulta.where(Pedido.estado == estado)
+    if desde is not None:
+        consulta = consulta.where(Pedido.creado_en >= desde)
+    if hasta is not None:
+        # `hasta` es un día completo, así que se compara contra el siguiente.
+        consulta = consulta.where(Pedido.creado_en < hasta + timedelta(days=1))
+    if q:
+        patron = f"%{_escapar_like(q.strip())}%"
+        consulta = consulta.where(
+            Pedido.numero_pedido.ilike(patron, escape="\\")
+            | Pedido.telefono_contacto.ilike(patron, escape="\\")
+            | Pedido.nombre_contacto.ilike(patron, escape="\\")
+        )
+
+    consulta = consulta.order_by(Pedido.creado_en.desc())
+    return list(sesion.scalars(consulta).unique())
+
+
+def _mover_stock(sesion: Session, pedido: Pedido, signo: int) -> None:
+    """Descuenta (signo -1) o repone (signo +1) el stock de cada item."""
+    for item in pedido.items:
+        producto = sesion.get(Producto, item.producto_id)
+        if producto is not None:
+            producto.stock += signo * item.cantidad
+
+
+def cambiar_estado(sesion: Session, pedido: Pedido, nuevo: EstadoPedido) -> Pedido:
+    """Mueve el pedido de estado y ajusta el stock en consecuencia.
+
+    El stock se descuenta al entrar a `pago_confirmado` y vuelve solo si el
+    pedido se cancela o no se concreta. Comparar "estaba tomado" con "debe
+    estar tomado" hace que la operación sea segura aunque se repita o se salte
+    estados.
+    """
+    if pedido.estado == nuevo:
+        return pedido
+
+    estaba_tomado = pedido.estado in ESTADOS_CON_STOCK_TOMADO
+    debe_estar_tomado = nuevo in ESTADOS_CON_STOCK_TOMADO
+
+    if debe_estar_tomado and not estaba_tomado:
+        faltantes = [
+            item
+            for item in pedido.items
+            if (producto := sesion.get(Producto, item.producto_id)) is not None
+            and producto.stock < item.cantidad
+        ]
+        if faltantes:
+            item = faltantes[0]
+            producto = sesion.get(Producto, item.producto_id)
+            raise StockInsuficiente(
+                producto.id, producto.nombre, producto.stock, item.cantidad
+            )
+        _mover_stock(sesion, pedido, -1)
+    elif estaba_tomado and not debe_estar_tomado:
+        _mover_stock(sesion, pedido, +1)
+
+    pedido.estado = nuevo
+    sesion.flush()
+    return pedido
+
+
+# ── Panel: catálogo ──────────────────────────────────────────────────
+
+
+class ErrorCatalogo(Exception):
+    """Error de negocio al editar el catálogo. La ruta lo traduce a HTTP."""
+
+
+class ValorRepetido(ErrorCatalogo):
+    def __init__(self, campo: str, valor: str):
+        super().__init__(f"Ya existe un producto con {campo} '{valor}'.")
+
+
+ORDENES_CATALOGO = {
+    "codigo": (Producto.codigo,),
+    "nuevos": (Producto.creado_en.desc(), Producto.codigo.desc()),
+    "editados": (Producto.actualizado_en.desc().nullslast(), Producto.codigo),
+    "nombre": (Producto.nombre,),
+    "stock": (Producto.stock,),
+    "precio": (Producto.precio.desc(),),
+}
+
+
+def listar_productos_admin(
+    sesion: Session,
+    *,
+    q: str | None = None,
+    categoria_id: int | None = None,
+    subcategoria_id: int | None = None,
+    marca_id: int | None = None,
+    activo: bool | None = None,
+    stock_bajo_de: int | None = None,
+    orden: str = "codigo",
+) -> list[Producto]:
+    """Todo el catálogo, activos e inactivos, con los filtros del panel."""
+    consulta = select(Producto)
+
+    if q:
+        patron = f"%{_escapar_like(q.strip())}%"
+        consulta = consulta.where(
+            Producto.nombre.ilike(patron, escape="\\")
+            | Producto.codigo.ilike(patron, escape="\\")
+        )
+    if categoria_id is not None:
+        consulta = consulta.where(
+            Producto.subcategoria_id.in_(
+                select(Subcategoria.id).where(Subcategoria.categoria_id == categoria_id)
+            )
+        )
+    if subcategoria_id is not None:
+        consulta = consulta.where(Producto.subcategoria_id == subcategoria_id)
+    if marca_id is not None:
+        consulta = consulta.where(Producto.marca_id == marca_id)
+    if activo is not None:
+        consulta = consulta.where(Producto.activo.is_(activo))
+    if stock_bajo_de is not None:
+        consulta = consulta.where(Producto.stock <= stock_bajo_de)
+
+    consulta = consulta.order_by(*ORDENES_CATALOGO.get(orden, ORDENES_CATALOGO["codigo"]))
+    return list(sesion.scalars(consulta).unique())
+
+
+def obtener_producto_admin(sesion: Session, codigo: str) -> Producto | None:
+    consulta = select(Producto).where(Producto.codigo == codigo)
+    return sesion.scalars(consulta).unique().one_or_none()
+
+
+def siguiente_codigo(sesion: Session) -> str:
+    """El siguiente ECN-NNN libre, mirando los que ya existen."""
+    codigos = sesion.scalars(select(Producto.codigo)).all()
+    numeros = [
+        int(c.split("-")[1])
+        for c in codigos
+        if c.startswith("ECN-") and c.split("-")[1].isdigit()
+    ]
+    return f"ECN-{(max(numeros) + 1) if numeros else 1:03d}"
+
+
+def guardar_producto(
+    sesion: Session, datos: dict, *, producto: Producto | None = None
+) -> Producto:
+    """Crea o actualiza un producto. `datos` ya viene validado por Pydantic."""
+    nuevo = producto is None
+
+    # Código y slug identifican al producto en la tienda: no pueden chocar.
+    for campo in ("codigo", "slug"):
+        valor = datos.get(campo)
+        if valor is None:
+            continue
+        choque = sesion.scalar(
+            select(Producto).where(getattr(Producto, campo) == valor)
+        )
+        if choque is not None and (nuevo or choque.id != producto.id):
+            raise ValorRepetido(campo, valor)
+
+    if nuevo:
+        producto = Producto(codigo=datos["codigo"])
+        sesion.add(producto)
+    else:
+        # El código identifica al producto y lo relaciona con sus fotos: una
+        # vez creado, no se cambia.
+        datos.pop("codigo", None)
+
+    for campo, valor in datos.items():
+        setattr(producto, campo, valor)
+
+    sesion.flush()
+    return producto

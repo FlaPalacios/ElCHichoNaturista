@@ -1,0 +1,166 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+if (!yo) return Astro.redirect('/admin');
+
+const clientes = (await traer('/clientes', token)) ?? [];
+
+const soles = (n) => 'S/ ' + Number(n).toFixed(2);
+const fecha = (iso) =>
+  new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+const waLink = (telefono, nombre) =>
+  `https://wa.me/51${telefono.replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(
+    `Hola ${nombre}, te escribimos de El Chico Naturista.`
+  )}`;
+
+const recurrentes = clientes.filter((c) => c.pedidos > 1).length;
+---
+
+<Admin title="Clientes" seccion="clientes" sesion={true}>
+  <header class="cab">
+    <div>
+      <p class="kicker">Panel</p>
+      <h1 class="titulo">Clientes</h1>
+    </div>
+    <p class="cab__resumen">
+      {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'} ·
+      <strong>{recurrentes}</strong> con más de una compra
+    </p>
+  </header>
+
+  <p class="apunte">
+    No hace falta que se registren: cada teléfono que hizo un pedido cuenta como un cliente.
+    Si alguien compra dos veces con el mismo número, se junta en una sola fila.
+  </p>
+
+  {
+    clientes.length === 0 ? (
+      <p class="vacio">Todavía nadie ha comprado. Cuando entre el primer pedido, aparece acá.</p>
+    ) : (
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Teléfono</th>
+            <th>Destino habitual</th>
+            <th>Pedidos</th>
+            <th>Total gastado</th>
+            <th>Última compra</th>
+          </tr>
+        </thead>
+        <tbody>
+          {clientes.map((c) => (
+            <tr>
+              <td>
+                <strong>{c.nombre}</strong>
+                {c.correo && <span class="sub">{c.correo}</span>}
+              </td>
+              <td>
+                <a href={waLink(c.telefono, c.nombre)} target="_blank" rel="noopener">
+                  {c.telefono}
+                </a>
+              </td>
+              <td class="sub">{c.ultimo_destino ?? '—'}</td>
+              <td>
+                <a href={`/admin?q=${encodeURIComponent(c.telefono)}`}>{c.pedidos}</a>
+              </td>
+              <td class="cifra">{soles(c.total_gastado)}</td>
+              <td class="sub">{fecha(c.ultima_compra)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+</Admin>
+
+<style>
+  .cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.2rem;
+  }
+
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .apunte {
+    font-size: 0.86rem;
+    color: var(--tinta-suave);
+    border-left: 3px solid var(--jade);
+    padding-left: 0.9rem;
+    margin: 0 0 1.6rem;
+    max-width: 62ch;
+  }
+
+  .tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+  }
+
+  .tabla th {
+    text-align: left;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    font-weight: 700;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .tabla td {
+    padding: 0.65rem 0.8rem;
+    border-bottom: 1px solid var(--linea);
+    vertical-align: top;
+  }
+
+  .tabla tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .tabla a {
+    color: var(--salvia);
+    border-bottom: 1px solid currentColor;
+  }
+
+  .sub {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  .cifra {
+    font-family: var(--titular);
+  }
+
+  .vacio {
+    color: var(--tinta-suave);
+    border: 1px dashed var(--linea-fuerte);
+    border-radius: var(--radio);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .tabla {
+      display: block;
+      overflow-x: auto;
+    }
+  }
+</style>

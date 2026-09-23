@@ -1,7 +1,11 @@
 // Único punto de contacto con la API de FastAPI.
 // Las páginas no llaman a fetch: piden los datos a estas funciones.
 
-const BASE = (import.meta.env.API_URL || 'http://127.0.0.1:8000/api/v1').replace(/\/$/, '');
+// PUBLIC_ porque este archivo también corre en el navegador (checkout y
+// carrito): Astro solo expone al cliente las variables con ese prefijo.
+const BASE = (
+  import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1'
+).replace(/\/$/, '');
 const TIEMPO_LIMITE = 8000;
 
 /** Error de la API con el estado HTTP, para distinguir un 404 de una caída. */
@@ -79,17 +83,22 @@ function adaptarProducto(p) {
     id: p.id,
     nombre: p.nombre,
     slug: p.slug,
-    categoria: p.categoria.slug,
-    categoriaNombre: p.categoria.nombre,
+    categoria: p.subcategoria.categoria.slug,
+    categoriaNombre: p.subcategoria.categoria.nombre,
+    subcategoria: p.subcategoria.slug,
+    subcategoriaNombre: p.subcategoria.nombre,
+    marca: p.marca.slug,
+    marcaNombre: p.marca.nombre,
     precio: Number(p.precio),
     precioAntes: p.precio_antes != null ? Number(p.precio_antes) : undefined,
     presentacion: p.presentacion ?? '',
-    origen: p.origen ?? '',
     descripcionCorta: p.descripcion_corta ?? '',
     descripcion: p.descripcion_larga ?? '',
     modoUso: p.modo_uso ?? '',
     beneficios: p.beneficios ?? [],
-    imagen: p.imagen_url,
+    codigo: p.codigo,
+    // Ya ordenadas por la API; la primera (orden 1) es la principal.
+    imagenes: (p.imagenes ?? []).map((i) => ({ url: i.url, tipo: i.tipo })),
     stock: p.stock,
     activo: p.activo,
     destacado: p.destacado,
@@ -97,22 +106,38 @@ function adaptarProducto(p) {
   };
 }
 
-function adaptarCategoria(c) {
-  return { id: c.id, nombre: c.nombre, slug: c.slug, orden: c.orden };
-}
-
+/** Categorías del menú, cada una con sus subcategorías. */
 export async function obtenerCategorias() {
   const datos = await pedir('/categorias');
-  return datos.map(adaptarCategoria);
+  return datos.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    slug: c.slug,
+    orden: c.orden,
+    subcategorias: (c.subcategorias ?? []).map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      slug: s.slug,
+    })),
+  }));
+}
+
+/** Marcas con productos a la venta, para el filtro del catálogo. */
+export async function obtenerMarcas() {
+  const datos = await pedir('/marcas');
+  return datos.map((m) => ({ id: m.id, nombre: m.nombre, slug: m.slug }));
 }
 
 /**
  * Lista productos activos.
- * Filtros: categoria, precioMin, precioMax, q, destacado, masVendido, enOferta.
+ * Filtros: categoria, subcategoria, marca, precioMin, precioMax, q, destacado,
+ * masVendido, enOferta.
  */
 export async function obtenerProductos(filtros = {}) {
   const datos = await pedir('/productos', {
     categoria: filtros.categoria,
+    subcategoria: filtros.subcategoria,
+    marca: filtros.marca,
     precio_min: filtros.precioMin,
     precio_max: filtros.precioMax,
     q: filtros.q,
@@ -148,11 +173,11 @@ function adaptarPedido(p) {
     numero: p.numero_pedido,
     fecha: p.creado_en,
     estado: p.estado,
-    entrega: p.entrega,
     direccionEnvio: p.direccion_envio,
+    departamento: p.departamento,
+    provincia: p.provincia,
     distrito: p.distrito,
     referencia: p.referencia,
-    metodoPago: p.metodo_pago,
     nota: p.nota,
     correo: p.email_contacto,
     items: p.items.map((i) => ({
@@ -180,6 +205,27 @@ export async function obtenerPedido(numero) {
     if (error instanceof ErrorApi && error.noEncontrado) return null;
     throw error;
   }
+}
+
+// ── Ubigeo y envío ──────────────────────────────────────────────────
+
+/** Los 25 departamentos del Perú. */
+export async function obtenerDepartamentos() {
+  return pedir('/ubigeo/departamentos');
+}
+
+export async function obtenerProvincias(codigoDepartamento) {
+  return pedir(`/ubigeo/departamentos/${encodeURIComponent(codigoDepartamento)}/provincias`);
+}
+
+export async function obtenerDistritos(codigoProvincia) {
+  return pedir(`/ubigeo/provincias/${encodeURIComponent(codigoProvincia)}/distritos`);
+}
+
+/** Cuánto cuesta enviar a ese distrito. El pedido lo recalcula igual. */
+export async function consultarEnvio(ubigeo) {
+  const datos = await pedir('/envio', { ubigeo });
+  return { ...datos, costo: Number(datos.costo) };
 }
 
 /** Precio en soles, con el formato que usa toda la tienda. */

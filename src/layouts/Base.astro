@@ -3,11 +3,15 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import CarritoPanel from '../components/CarritoPanel.astro';
-import { tienda, waLink } from '../data/tienda.js';
+import { waLink as enlaceWa } from '../lib/tienda.js';
+
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
+const waLink = (mensaje) => enlaceWa(tienda, mensaje);
 
 const {
   title,
-  description = 'Tienda de productos naturales en Lima: henna, suplementos, aceites esenciales y superalimentos peruanos. Pedidos por WhatsApp.',
+  description = 'Tienda de productos naturales en Lima: henna, aceites, superalimentos, lácteos y kéfir. Pedidos por WhatsApp.',
   activo = '',
 } = Astro.props;
 
@@ -25,6 +29,7 @@ const titulo = title ? `${title} · ${tienda.nombre}` : `${tienda.nombre} · ${t
     <meta property="og:title" content={titulo} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <!-- Único sitio con el salvia escrito a mano: <meta> no acepta variables CSS. -->
     <meta name="theme-color" content="#2F5D50" />
     <!-- Las fuentes se sirven desde /fonts: sin llamadas a terceros. Se
          precargan las dos que se ven de entrada. -->
@@ -33,6 +38,8 @@ const titulo = title ? `${title} · ${tienda.nombre}` : `${tienda.nombre} · ${t
   </head>
 
   <body>
+    <!-- Alpine corre en el navegador y también necesita estos datos. -->
+    <script is:inline set:html={`window.__tienda = ${JSON.stringify(tienda)}`}></script>
     <a href="#contenido" class="saltar">Saltar al contenido</a>
     <Header activo={activo} />
 
@@ -84,7 +91,7 @@ const titulo = title ? `${title} · ${tienda.nombre}` : `${tienda.nombre} · ${t
         background: var(--jade);
         color: #fff;
         border-radius: 50%;
-        box-shadow: 0 10px 22px -12px rgba(122, 155, 135, 0.9);
+        box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--jade) 90%, transparent);
         transition: transform 0.2s, background 0.2s;
       }
 

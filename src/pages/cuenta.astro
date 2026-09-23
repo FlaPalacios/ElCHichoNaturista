@@ -1,78 +1,64 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tienda, waLink } from '../data/tienda.js';
+import { waLink as enlaceWa } from '../lib/tienda.js';
+
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
+const waLink = (mensaje) => enlaceWa(tienda, mensaje);
 ---
 
-<Base title="Mi cuenta" description="Ingresa o crea tu cuenta para guardar tus datos y ver tus pedidos." activo="cuenta">
+<Base title="Tus pedidos" description="Consulta el estado de tu pedido con su número." activo="cuenta">
   <header class="cab">
     <div class="env cab__env">
       <div>
-        <p class="kicker">Opcional</p>
-        <h1 class="titulo">Tu cuenta</h1>
+        <p class="kicker">Seguimiento</p>
+        <h1 class="titulo">Tus pedidos</h1>
       </div>
       <p class="cab__nota">
-        No hace falta cuenta para comprar. Sirve para guardar tus datos y revisar pedidos anteriores.
+No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué va.
       </p>
     </div>
   </header>
 
-  <div class="env cuenta" x-data="{ vista: 'ingresar' }">
-    <section class="acceso">
-      <div class="pestanas" role="tablist">
-        <button
-          role="tab"
-          :aria-selected="vista === 'ingresar'"
-          :class="vista === 'ingresar' && 'es-activa'"
-          @click="vista = 'ingresar'"
-        >Ingresar</button>
-        <button
-          role="tab"
-          :aria-selected="vista === 'crear'"
-          :class="vista === 'crear' && 'es-activa'"
-          @click="vista = 'crear'"
-        >Crear cuenta</button>
+  <div class="env cuenta">
+    <section class="acceso" x-data="consultaPedido">
+      <h2 class="acceso__t">Consulta tu pedido</h2>
+      <p class="acceso__d">
+        Escribe el número que te dimos al confirmar (por ejemplo ECN-260921-4471) y te decimos
+        en qué va.
+      </p>
+
+      <form class="acceso__form" @submit.prevent="buscar()">
+        <label class="campo">
+          <span class="campo__etq">Número de pedido</span>
+          <input type="text" x-model="numero" placeholder="ECN-AAMMDD-NNNN" autocomplete="off" />
+        </label>
+        <button class="btn btn--bloque" type="submit" :disabled="buscando">
+          <span x-text="buscando ? 'Buscando…' : 'Consultar'"></span>
+        </button>
+        <p class="error" x-show="error" x-text="error"></p>
+      </form>
+
+      <div class="hallado" x-show="pedido" x-cloak>
+        <p class="hallado__numero" x-text="pedido?.numero"></p>
+        <p class="hallado__estado" x-text="$store.pedido.etiquetaEstado(pedido?.estado)"></p>
+        <ul class="hallado__items">
+          <template x-for="i in pedido?.items || []" :key="i.producto_id">
+            <li>
+              <span x-text="i.cantidad + ' × ' + i.nombre"></span>
+              <span x-text="$store.carrito.soles(i.precio_unitario * i.cantidad)"></span>
+            </li>
+          </template>
+        </ul>
+        <p class="hallado__total">
+          <span>Total</span>
+          <strong x-text="$store.carrito.soles(pedido?.total || 0)"></strong>
+        </p>
+        <p class="acceso__aviso">
+          ¿Algo no cuadra? Escríbenos por WhatsApp al {tienda.whatsappVisible} con tu número de
+          pedido.
+        </p>
       </div>
-
-      <form class="acceso__form" x-show="vista === 'ingresar'" @submit.prevent="">
-        <label class="campo">
-          <span class="campo__etq">Correo</span>
-          <input type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
-        </label>
-        <label class="campo">
-          <span class="campo__etq">Contraseña</span>
-          <input type="password" autocomplete="current-password" placeholder="••••••••" />
-        </label>
-        <button class="btn btn--bloque" type="submit">Ingresar</button>
-        <p class="acceso__aviso">
-          El acceso con cuenta se activa cuando conectemos el backend. Por ahora el pedido se
-          confirma por WhatsApp sin registrarse.
-        </p>
-      </form>
-
-      <form class="acceso__form" x-show="vista === 'crear'" x-cloak @submit.prevent="">
-        <label class="campo">
-          <span class="campo__etq">Nombre completo</span>
-          <input type="text" autocomplete="name" placeholder="Nombre y apellido" />
-        </label>
-        <div class="par">
-          <label class="campo">
-            <span class="campo__etq">Correo</span>
-            <input type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
-          </label>
-          <label class="campo">
-            <span class="campo__etq">WhatsApp</span>
-            <input type="tel" autocomplete="tel" placeholder="9XX XXX XXX" />
-          </label>
-        </div>
-        <label class="campo">
-          <span class="campo__etq">Contraseña</span>
-          <input type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
-        </label>
-        <button class="btn btn--bloque" type="submit">Crear cuenta</button>
-        <p class="acceso__aviso">
-          Guardaremos solo lo necesario para despachar tus pedidos: nombre, contacto y dirección.
-        </p>
-      </form>
     </section>
 
     <aside class="lateral" x-cloak>
@@ -81,7 +67,7 @@ import { tienda, waLink } from '../data/tienda.js';
         <p class="ultimo__numero" x-text="$store.pedido.ultimo?.numero"></p>
         <p class="ultimo__fecha">
           <span x-text="$store.pedido.ultimo ? new Date($store.pedido.ultimo.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : ''"></span>
-          · <span class="ultimo__estado" x-text="$store.pedido.ultimo?.estado"></span>
+          · <span class="ultimo__estado" x-text="$store.pedido.etiquetaEstado($store.pedido.ultimo?.estado)"></span>
           <span
             class="ultimo__pendiente"
             x-show="$store.pedido.ultimo?.sincronizado === false"
@@ -171,35 +157,60 @@ import { tienda, waLink } from '../data/tienda.js';
     max-width: 520px;
   }
 
-  .pestanas {
-    display: flex;
-    gap: 2rem;
-    border-bottom: 1px solid var(--linea-fuerte);
-    margin-bottom: 1.8rem;
+  .acceso__t {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
   }
 
-  .pestanas button {
-    background: none;
-    border: none;
-    padding: 0 0 0.8rem;
+  .acceso__d {
+    color: var(--tinta-suave);
+    font-size: 0.93rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .hallado {
+    border-top: 1px solid var(--linea-fuerte);
+    margin-top: 1.6rem;
+    padding-top: 1.3rem;
+  }
+
+  .hallado__numero {
+    font-family: var(--titular);
+    font-size: 1.3rem;
+    color: var(--cafe);
+    margin: 0;
+  }
+
+  .hallado__estado {
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--tinta-suave);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-
-  .pestanas button.es-activa {
     color: var(--salvia);
-    border-color: var(--salvia);
+    margin: 0.2rem 0 1rem;
   }
 
-  .par {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 1.2rem;
+  .hallado__items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.92rem;
+  }
+
+  .hallado__items li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px dotted var(--linea-fuerte);
+  }
+
+  .hallado__total {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.9rem 0 0;
+    font-family: var(--titular);
+    font-size: 1.1rem;
   }
 
   .acceso__aviso {
@@ -218,8 +229,8 @@ import { tienda, waLink } from '../data/tienda.js';
 
   .ultimo {
     background: var(--jade);
-    color: rgba(33, 30, 30, 0.7);
-    border: 1px solid rgba(33, 30, 30, 0.12);
+    color: var(--cafe-texto);
+    border: 1px solid var(--cafe-linea);
     padding: 1.4rem 1.5rem;
   }
 
@@ -237,7 +248,7 @@ import { tienda, waLink } from '../data/tienda.js';
 
   .ultimo__fecha {
     font-size: 0.8rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin-bottom: 1rem;
   }
 
@@ -251,7 +262,7 @@ import { tienda, waLink } from '../data/tienda.js';
 
   .ultimo__pendiente {
     font-size: 0.7rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
   }
 
   .ultimo__items {
@@ -266,7 +277,7 @@ import { tienda, waLink } from '../data/tienda.js';
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;
-    border-bottom: 1px dotted rgba(33, 30, 30, 0.15);
+    border-bottom: 1px dotted var(--cafe-linea);
   }
 
   .ultimo__total {
@@ -280,7 +291,7 @@ import { tienda, waLink } from '../data/tienda.js';
 
   .ultimo__nada {
     font-size: 0.9rem;
-    color: rgba(33, 30, 30, 0.55);
+    color: var(--cafe-suave);
     margin-block: 0.8rem 1.2rem;
   }
 

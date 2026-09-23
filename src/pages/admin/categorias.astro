@@ -1,0 +1,383 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+if (!yo) return Astro.redirect('/admin');
+
+const clasificacion = (await traer('/clasificacion', token)) ?? {
+  categorias: [],
+  marcas: [],
+};
+---
+
+<Admin title="Categorías" seccion="categorias" sesion={true}>
+  <header class="cab">
+    <div>
+      <p class="kicker">Panel</p>
+      <h1 class="titulo">Clasificación</h1>
+    </div>
+    <p class="cab__resumen">
+      Con esto se ordena el catálogo. La tienda solo muestra lo que tiene productos activos.
+    </p>
+  </header>
+
+  <div class="columnas" x-data={`clasificacionAdmin(${JSON.stringify(clasificacion)})`}>
+    <!-- ── Categorías y subcategorías ───────────────────────── -->
+    <section class="bloque">
+      <div class="bloque__cab">
+        <h2 class="subtitulo">Categorías</h2>
+        <button class="btn" type="button" @click="nuevaCategoria()">Nueva categoría</button>
+      </div>
+
+      <p class="mensaje" x-show="mensaje" x-text="mensaje" :class="error && 'mensaje--error'" x-cloak></p>
+
+      <template x-for="c in categorias" :key="c.id">
+        <article class="tarjeta">
+          <header class="tarjeta__cab">
+            <div>
+              <h3 x-text="c.nombre"></h3>
+              <p class="pista">
+                <span x-text="c.slug"></span> ·
+                <span x-text="c.productos + (c.productos === 1 ? ' producto' : ' productos')"></span>
+                <span x-show="!c.activo" class="oculta"> · oculta</span>
+              </p>
+            </div>
+            <div class="tarjeta__acciones">
+              <button type="button" @click="editarCategoria(c)">Editar</button>
+              <button type="button" @click="nuevaSubcategoria(c)">+ Subcategoría</button>
+              <button
+                type="button"
+                class="borrar"
+                @click="borrarCategoria(c)"
+                :disabled="c.subcategorias.length > 0"
+                :title="c.subcategorias.length > 0 ? 'Primero borra o mueve sus subcategorías' : 'Borrar'"
+              >Borrar</button>
+            </div>
+          </header>
+
+          <ul class="subs">
+            <template x-for="s in c.subcategorias" :key="s.id">
+              <li>
+                <span>
+                  <strong x-text="s.nombre"></strong>
+                  <span class="pista">
+                    <span x-text="s.slug"></span> ·
+                    <span x-text="s.productos + (s.productos === 1 ? ' producto' : ' productos')"></span>
+                    <span x-show="!s.activo" class="oculta"> · oculta</span>
+                  </span>
+                </span>
+                <span class="tarjeta__acciones">
+                  <button type="button" @click="editarSubcategoria(s, c)">Editar</button>
+                  <button
+                    type="button"
+                    class="borrar"
+                    @click="borrarSubcategoria(s)"
+                    :disabled="s.productos > 0"
+                    :title="s.productos > 0 ? 'Primero mueve sus productos' : 'Borrar'"
+                  >Borrar</button>
+                </span>
+              </li>
+            </template>
+            <li class="subs__vacio" x-show="c.subcategorias.length === 0">
+              Sin subcategorías todavía.
+            </li>
+          </ul>
+        </article>
+      </template>
+
+      <p class="vacio" x-show="categorias.length === 0">
+        Todavía no hay categorías. Crea la primera para empezar a clasificar.
+      </p>
+    </section>
+
+    <!-- ── Marcas ───────────────────────────────────────────── -->
+    <section class="bloque">
+      <div class="bloque__cab">
+        <h2 class="subtitulo">Marcas</h2>
+        <button class="btn" type="button" @click="nuevaMarca()">Nueva marca</button>
+      </div>
+
+      <ul class="marcas">
+        <template x-for="m in marcas" :key="m.id">
+          <li>
+            <span>
+              <strong x-text="m.nombre"></strong>
+              <span class="pista">
+                <span x-text="m.slug"></span> ·
+                <span x-text="m.productos + (m.productos === 1 ? ' producto' : ' productos')"></span>
+              </span>
+            </span>
+            <span class="tarjeta__acciones">
+              <button type="button" @click="editarMarca(m)">Editar</button>
+              <button
+                type="button"
+                class="borrar"
+                @click="borrarMarca(m)"
+                :disabled="m.productos > 0"
+                :title="m.productos > 0 ? 'Primero cámbiales la marca a sus productos' : 'Borrar'"
+              >Borrar</button>
+            </span>
+          </li>
+        </template>
+        <li class="subs__vacio" x-show="marcas.length === 0">Todavía no hay marcas.</li>
+      </ul>
+    </section>
+
+    <!-- ── Formulario ───────────────────────────────────────── -->
+    <div class="modal" x-show="form" x-cloak>
+      <div class="modal__velo" @click="cerrar()"></div>
+      <form class="modal__caja" @submit.prevent="guardar()">
+        <h2 x-text="tituloForm()"></h2>
+
+        <label class="campo">
+          <span class="campo__etq">Nombre</span>
+          <input type="text" x-model="form.nombre" required x-ref="primero" />
+        </label>
+
+        <label class="campo" x-show="form?.tipo === 'subcategoria'">
+          <span class="campo__etq">Categoría a la que pertenece</span>
+          <select x-model.number="form.categoria_id">
+            <template x-for="c in categorias" :key="c.id">
+              <option :value="c.id" x-text="c.nombre"></option>
+            </template>
+          </select>
+        </label>
+
+        <div class="par">
+          <label class="campo">
+            <span class="campo__etq">Orden en el menú</span>
+            <input type="number" x-model.number="form.orden" min="0" />
+          </label>
+          <label class="campo" x-show="form?.tipo !== 'marca'">
+            <span class="campo__etq">Visible</span>
+            <label class="casilla"><input type="checkbox" x-model="form.activo" /> Se muestra en la tienda</label>
+          </label>
+        </div>
+
+        <p class="pista">
+          La dirección en la tienda se arma sola desde el nombre.
+          <span x-show="!form?.id"> Por ejemplo, "Café y cacao" queda como <em>cafe-y-cacao</em>.</span>
+        </p>
+
+        <p class="mensaje mensaje--error" x-show="errorForm" x-text="errorForm"></p>
+
+        <footer class="modal__pie">
+          <button type="button" class="btn btn--linea" @click="cerrar()">Cancelar</button>
+          <button type="submit" class="btn" :disabled="guardando">
+            <span x-text="guardando ? 'Guardando…' : 'Guardar'">Guardar</span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+</Admin>
+
+<style>
+  .cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.8rem;
+  }
+
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 44ch;
+  }
+
+  .columnas {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .bloque__cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .tarjeta {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .tarjeta__cab {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .tarjeta__cab h3 {
+    font-size: 1.05rem;
+  }
+
+  .tarjeta__acciones {
+    display: flex;
+    gap: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .tarjeta__acciones button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.8rem;
+    color: var(--salvia);
+    border-bottom: 1px solid currentColor;
+  }
+
+  .tarjeta__acciones button:disabled {
+    color: var(--linea-fuerte);
+    border-color: transparent;
+    cursor: not-allowed;
+  }
+
+  .tarjeta__acciones .borrar:not(:disabled):hover {
+    color: var(--rojo);
+  }
+
+  .pista {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+    margin: 0.15rem 0 0;
+  }
+
+  .oculta {
+    color: var(--henna);
+  }
+
+  .subs,
+  .marcas {
+    list-style: none;
+    margin: 0.9rem 0 0;
+    padding: 0;
+  }
+
+  .marcas {
+    margin-top: 0;
+  }
+
+  .subs li,
+  .marcas li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-top: 1px dotted var(--linea-fuerte);
+    font-size: 0.92rem;
+  }
+
+  .marcas li {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 0.7rem 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .subs__vacio {
+    color: var(--tinta-suave);
+    font-size: 0.85rem;
+    justify-content: flex-start;
+  }
+
+  .vacio {
+    color: var(--tinta-suave);
+    border: 1px dashed var(--linea-fuerte);
+    border-radius: var(--radio);
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+
+  .mensaje {
+    font-size: 0.88rem;
+    color: var(--salvia);
+    margin: 0 0 0.8rem;
+  }
+
+  .mensaje--error {
+    color: var(--rojo);
+  }
+
+  /* Formulario */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+  }
+
+  .modal__velo {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--salvia-osc) 35%, transparent);
+  }
+
+  .modal__caja {
+    position: relative;
+    width: min(440px, 100%);
+    background: var(--fondo);
+    border-radius: var(--radio);
+    padding: 1.5rem;
+  }
+
+  .modal__caja h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .modal__pie {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+    margin-top: 1.2rem;
+  }
+
+  .par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1rem;
+  }
+
+  .casilla {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.86rem;
+  }
+
+  .casilla input {
+    width: auto;
+  }
+
+  @media (max-width: 900px) {
+    .columnas {
+      grid-template-columns: 1fr;
+    }
+
+    .par {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

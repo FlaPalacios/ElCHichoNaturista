@@ -14,6 +14,7 @@ Hacen falta dos procesos. Primero el backend (instrucciones completas en
 
 ```bash
 cd backend
+python -m app.instalar             # deja la base lista (la primera vez)
 uvicorn app.main:app --reload      # http://127.0.0.1:8000
 ```
 
@@ -26,7 +27,7 @@ npm run build                      # compila a dist/
 node ./dist/server/entry.mjs       # sirve lo compilado
 ```
 
-La URL de la API se configura en `.env` (`API_URL`); por defecto apunta a
+La URL de la API se configura en `.env` (`PUBLIC_API_URL`); por defecto apunta a
 `http://127.0.0.1:8000/api/v1`. Si el backend no responde, el sitio no se cae:
 muestra un aviso con el botón de WhatsApp.
 
@@ -39,20 +40,28 @@ muestra un aviso con el botón de WhatsApp.
 | 3. Backend FastAPI + PostgreSQL | hecha — ver [backend/README.md](backend/README.md) |
 | 4. Conectar el frontend al backend | hecha — el sitio ya lee de la API |
 | 5. Flujo de pedido completo | hecha — el checkout registra el pedido en el backend y abre WhatsApp |
-| 6. Panel de administración | maqueta visual, sin datos reales ni autenticación |
-| 7. Pulido visual según feedback | esperando tu revisión |
+| 6. Panel de administración | hecha — Pedidos, Productos, Categorías, Configuración, Resumen y Clientes |
+| 7. Pulido visual según feedback | pendiente — nadie ha revisado el sitio en un navegador todavía |
+
+El contexto completo del proyecto, al día, está en
+[contexto y pasados/ahora/CONTEXTO_PROYECTO.md](contexto%20y%20pasados/ahora/CONTEXTO_PROYECTO.md).
 
 ## Páginas
 
 | Ruta | Qué es |
 |---|---|
-| `/` | Portada de venta: banner de entrada, franja de beneficios, accesos por departamento y cinco bloques de producto (más vendidos, ofertas, Henna Colors, aceites, superalimentos) |
-| `/catalogo` | El catálogo con búsqueda, filtro por departamento, tope de precio, solo ofertas y 5 criterios de orden (el filtrado ocurre en el navegador, sin recargar) |
+| `/` | Portada de venta: banner de entrada, franja de beneficios, accesos por departamento y bloques de producto (destacados, más vendidos, ofertas y el resto del catálogo). Cada bloque aparece solo si tiene productos |
+| `/catalogo` | El catálogo con búsqueda, filtros por categoría, subcategoría y marca, tope de precio, solo ofertas y 5 criterios de orden (el filtrado ocurre en el navegador, sin recargar) |
 | `/producto/[slug]` | Ficha con descripción, beneficios, modo de uso, selector de cantidad y consulta directa por WhatsApp |
-| `/carrito` | Revisión del pedido, cantidades, barra de envío gratis |
-| `/checkout` | Datos, entrega, forma de pago → registra el pedido en el backend (`ECN-AAMMDD-NNNN` lo genera la API) y abre WhatsApp con el detalle escrito. Si el backend no responde, genera el número localmente y lo marca para sincronizar después |
-| `/cuenta` | Ingresar / crear cuenta (maqueta) + último pedido guardado en el navegador |
-| `/admin` | Tablero interno: inventario y métricas reales de la base; los pedidos y el acceso siguen siendo maqueta |
+| `/carrito` | Revisión del pedido, cantidades, barra de envío gratis. El costo del envío no se sabe hasta elegir el distrito en el checkout |
+| `/checkout` | Datos, dirección (departamento → provincia → distrito, todo el Perú) y nota → registra el pedido en el backend (`ECN-AAMMDD-NNNN` lo genera la API) y abre WhatsApp con el detalle escrito. Si el backend no responde, genera el número localmente y lo marca para sincronizar después |
+| `/cuenta` | Consulta de un pedido por su número + último pedido guardado en el navegador |
+| `/admin` | Panel interno, con su propio layout (sin encabezado, pie, carrito ni botón de WhatsApp). Pide usuario y contraseña |
+| `/admin/productos` | Catálogo completo con filtros (categoría, subcategoría, marca, estado, poco stock y seis órdenes). Edición rápida de stock, activar/desactivar, ficha con todos los campos, fotos a Cloudinary, exportar e importar TSV |
+| `/admin/categorias` | Categorías, subcategorías y marcas: crear, editar, reordenar y borrar |
+| `/admin/configuracion` | Datos de la tienda, mensajes, envío gratis, umbral de stock y la tabla de costos de envío por zona |
+| `/admin/resumen` | Pedidos por atender, ventas del mes, top 5 y lo que se está acabando |
+| `/admin/clientes` | Clientes derivados de los pedidos, agrupados por teléfono |
 | 404 | Página de rutas alternativas |
 
 ## Estructura
@@ -60,33 +69,73 @@ muestra un aviso con el botón de WhatsApp.
 ```
 src/
   alpine.js              Stores de Alpine: carrito y pedido (localStorage)
-  lib/api.js             Único punto de contacto con la API de FastAPI
+  middleware.js          Carga los datos de la tienda una vez por visita
+  lib/
+    api.js               Único punto de contacto con la API pública
+    admin.js             Sesión del panel (cookie httpOnly) y llamadas con token
+    tienda.js            Datos de la tienda desde la API, con respaldo local
+    cloudinary.js        Arma la URL de cada foto al tamaño que hace falta
   data/
     tienda.js            WhatsApp, dirección, horario, avisos, envío gratis
-  layouts/Base.astro     Head, fuentes, header, footer, panel de carrito, botón flotante
+  layouts/
+    Base.astro           Head, fuentes, header, footer, panel de carrito, botón flotante
+    Admin.astro          Layout del panel: solo menú lateral y contenido
   components/
     Header.astro         Cintillo rotativo, mega-menú por departamentos, buscador
     Footer.astro         Navegación, datos de contacto, aviso legal
     ProductoCard.astro   Ficha de producto reutilizable
     CarritoPanel.astro   Panel lateral del carrito
-    Etiqueta.astro       Imagen de producto dibujada en SVG (ver abajo)
+    FotoProducto.astro   Foto de Cloudinary, o marco con el sello si no hay foto
     ApiCaida.astro       Aviso cuando la API no responde
-    Greca.astro          Divisor con la greca del sello
   pages/                 Una por ruta
   styles/global.css      Tokens de marca, tipografía, botones, formularios
 ```
 
 ## Decisiones que conviene conocer
 
-**Imágenes de producto.** Todavía no hay fotos, así que cada producto se dibuja
-con `Etiqueta.astro`: un envase deducido de su presentación (sobre, frasco
-ámbar, bolsa, botella…) sobre el paisaje del sello, con una gama de color por
-departamento y tonos propios para los tintes de henna. Cuando existan fotos
-reales, se cambia ese componente por un `<img>` y nada más se toca.
+**Imágenes de producto.** Fotos alojadas en Cloudinary (tabla `product_images`).
+La de orden 1 es la principal en tarjetas; la ficha muestra todas con
+miniaturas. [src/lib/cloudinary.js](src/lib/cloudinary.js) pide cada foto al
+ancho que hace falta, así el navegador no baja el original.
+
+**Cómo está organizado el catálogo.** Dos niveles: categoría (Frescos,
+Abarrotes, Cuidado Personal) → subcategoría, más la marca del producto
+(Green House / HIRI, Henna Colors, Fit Rex, Algarrobos Orgánicos). El menú y
+la portada muestran las categorías; el catálogo filtra por los tres. Las
+categorías, subcategorías y marcas sin productos activos no se muestran.
 
 **De dónde salen los productos.** De la API, vía [src/lib/api.js](src/lib/api.js),
 que además traduce los nombres de campo de la API a los que usan los
 componentes. No queda catálogo escrito en el frontend.
+
+**Envío.** S/ 10 a los 43 distritos de la provincia de Lima y a los 7 del
+Callao, S/ 15 al resto del Perú, y gratis en todo el país desde S/ 120. El
+costo sale de una tabla en la base editable desde el panel, no del código. El
+checkout pide departamento, provincia y distrito con el padrón del INEI (1891
+distritos), y el carrito no muestra costo de envío hasta ese momento porque
+depende del destino.
+
+**Sin recojo en tienda ni método de pago.** Todo pedido es delivery. El pago se
+coordina por WhatsApp (Yape, Plin o transferencia); en el checkout es solo una
+nota informativa.
+
+**La sesión del panel vive en una cookie httpOnly.** El token JWT nunca queda
+al alcance del JavaScript de la página: las pantallas del panel piden los datos
+desde el servidor, y los cambios (estado de un pedido, nota interna) pasan por
+`/api/admin/…`, un puente que reenvía a FastAPI poniendo el token. Ese puente
+solo alcanza rutas bajo `/admin` de la API.
+
+**Los datos de la tienda se editan desde el panel.** El WhatsApp, la
+dirección, las redes, los avisos del cintillo y el monto de envío gratis salen
+de la base. [src/middleware.js](src/middleware.js) los carga una vez por visita
+y los deja en `Astro.locals.tienda`, así ningún componente los pide por su
+cuenta. Si la API no responde se usan los de
+[src/data/tienda.js](src/data/tienda.js) y el sitio sigue mostrando algo
+sensato.
+
+**El catálogo se edita desde el panel.** La base manda; la planilla
+`backend/app/datos/catalogo.tsv` quedó como carga inicial. Desde el panel se
+exporta el catálogo a TSV (abre en Excel) y se vuelve a importar editado.
 
 **Carrito y pedido.** El carrito vive en `localStorage` (`ecn.carrito.v1`) y se
 sincroniza entre pestañas. El pedido se crea en el backend (`POST
@@ -105,11 +154,20 @@ dos tiene ejes variables por CDN, así que se cargan los pesos que se usan:
 400/500/600/700 de Hind y 400/500/700 de Amulya. Detalles y licencias en
 `public/fonts/LEEME.txt`.
 
-**Verde jade `#7A9B87` en las superficies grandes.** El encabezado del sitio,
-la banda de cierre de la portada, y las cajas de resumen del carrito, checkout
-y cuenta usan jade (`--jade`) como fondo, con texto e íconos en tonos oscuros
-(`--cafe`, `--salvia-osc`, o esos mismos a media opacidad) para que se sigan
-leyendo — jade es un verde claro, así que ahí va texto oscuro, no claro.
+**Todos los colores salen de `:root` en
+[src/styles/global.css](src/styles/global.css).** Fuera de ahí no hay colores
+escritos a mano (la única excepción es el `<meta name="theme-color">` de
+`Base.astro`, que no acepta variables). Para cambiar la paleta se tocan esas
+variables y listo. Los tres tonos atenuados del café (`--cafe-texto`,
+`--cafe-suave`, `--cafe-linea`) se calculan a partir de `--cafe` con
+`color-mix`, así que cambiando el café cambian los tres. Lo mismo del lado
+claro con `--sobre-salvia` y `--linea-salvia`.
+
+**Verde jade `#7A9B87` en las superficies grandes.** El encabezado del sitio
+y las cajas de resumen del carrito, checkout y cuenta usan jade (`--jade`) como
+fondo, con texto e íconos en tonos oscuros (`--cafe-texto`, `--cafe-suave`)
+para que se sigan leyendo — jade es un verde claro, así que ahí va texto
+oscuro, no claro.
 
 **Café `#211E1E` solo en detalles pequeños.** El color oscuro (`--cafe`) se
 quedó a propósito nada más en botones y puntos concretos que no ocupan mucho
@@ -145,8 +203,8 @@ antes (~3.1:1 frente al mínimo de 4.5:1 de WCAG AA para texto normal) — si en
 algún momento se quiere más legibilidad ahí, la forma más simple es oscurecer
 el texto del botón en vez de aclarar el fondo.
 
-**Categorías de la portada.** Cuatro botones-píldora redondeados con una
-insignia circular numerada (01–04) a la izquierda; el círculo ya está listo
+**Categorías de la portada.** Botones-píldora redondeados con una insignia
+circular numerada a la izquierda (solo las categorías con productos activos); el círculo ya está listo
 para reemplazarse por una foto de categoría más adelante (`overflow: hidden`).
 Sin conteo de productos, a propósito: minimalista.
 
@@ -171,6 +229,9 @@ beneficios y producto tras producto, siguiendo la estructura de mundoverde.com.p
 
 - `src/data/tienda.js`: el WhatsApp (`51946049689`) y la dirección ya son los
   reales. Falta confirmar el correo y los enlaces de Instagram y Facebook.
-- Reemplazar los productos de ejemplo de la base por el catálogo real (el seed
-  está en `backend/app/datos_semilla.json`).
+- Completar los 8 borradores del catálogo (galletas, algarrobina y maca: sin
+  precio ni descripción) desde el panel.
+- Dejar la base en limpio con `python -m app.instalar --reset`, que borra los
+  datos de prueba y carga el catálogo real.
+- Rotar las credenciales de Cloudinary, que se compartieron por chat.
 - Cambiar `site` en `astro.config.mjs` por el dominio definitivo.

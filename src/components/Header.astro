@@ -1,6 +1,7 @@
 ---
 import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
-import { tienda } from '../data/tienda.js';
+// Los datos de la tienda los carga el middleware desde la API.
+const tienda = Astro.locals.tienda;
 
 const { activo = '' } = Astro.props;
 
@@ -11,7 +12,11 @@ let destacadoMenu = [];
 try {
   [categorias, destacadoMenu] = await Promise.all([
     obtenerCategorias(),
-    obtenerProductos({ masVendido: true }).then((lista) => lista.slice(0, 3)),
+    // Los más vendidos; si todavía no hay ninguno marcado, los destacados.
+    obtenerProductos().then((lista) => {
+      const vendidos = lista.filter((p) => p.masVendido);
+      return (vendidos.length ? vendidos : lista.filter((p) => p.destacado)).slice(0, 3);
+    }),
   ]);
 } catch {
   categorias = [];
@@ -72,14 +77,19 @@ try {
                     <a href={`/catalogo?categoria=${c.slug}`} class="mega__titulo">
                       {c.nombre}
                     </a>
-                    <p class="mega__linea">{c.linea}</p>
-                    <p class="mega__resumen">{c.resumen}</p>
+                    <ul class="mega__subs">
+                      {c.subcategorias.map((s) => (
+                        <li>
+                          <a href={`/catalogo?subcategoria=${s.slug}`}>{s.nombre}</a>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))
               }
             </div>
             <aside class="mega__aparte">
-              <p class="kicker">Los que más salen</p>
+              <p class="kicker">Recomendados</p>
               <ul class="mega__lista">
                 {
                   destacadoMenu.map((p) => (
@@ -98,18 +108,16 @@ try {
         </div>
       </div>
 
-      <a
-        href="/catalogo?categoria=cosmetica-capilar"
-        class:list={['nav__enlace', activo === 'henna' && 'nav__enlace--activo']}>Henna Colors</a
-      >
-      <a
-        href="/catalogo?categoria=superalimentos"
-        class:list={['nav__enlace', activo === 'superalimentos' && 'nav__enlace--activo']}>Superalimentos</a
-      >
-      <a
-        href="/catalogo?categoria=aceites"
-        class:list={['nav__enlace', activo === 'aceites' && 'nav__enlace--activo']}>Aceites</a
-      >
+      {
+        categorias.map((c) => (
+          <a
+            href={`/catalogo?categoria=${c.slug}`}
+            class:list={['nav__enlace', activo === c.slug && 'nav__enlace--activo']}
+          >
+            {c.nombre}
+          </a>
+        ))
+      }
     </nav>
 
     <div class="acciones">
@@ -150,7 +158,7 @@ try {
 <style>
   .cintillo {
     background: var(--salvia);
-    color: #e7eee9;
+    color: var(--sobre-salvia);
     font-size: 0.74rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -180,7 +188,7 @@ try {
     top: 0;
     z-index: 60;
     background: var(--fondo);
-    border-bottom: 1px solid rgba(33, 30, 30, 0.15);
+    border-bottom: 1px solid var(--cafe-linea);
   }
 
   .cabecera__env {
@@ -222,7 +230,7 @@ try {
     font-size: 0.72rem;
     letter-spacing: 0.3em;
     text-transform: uppercase;
-    color: rgba(33, 30, 30, 0.65);
+    color: var(--cafe-texto);
     font-family: var(--texto);
     margin-top: 0.3rem;
   }
@@ -269,7 +277,7 @@ try {
     top: 100%;
     background: var(--fondo);
     border-bottom: 1px solid var(--linea);
-    box-shadow: 0 18px 30px -26px rgba(51, 57, 58, 0.5);
+    box-shadow: 0 18px 30px -26px color-mix(in srgb, var(--tinta) 50%, transparent);
   }
 
   .mega__env {
@@ -308,18 +316,19 @@ try {
     border-color: var(--salvia);
   }
 
-  .mega__linea {
-    font-size: 0.7rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--henna);
-    margin: 0.35rem 0 0.6rem;
-  }
-
-  .mega__resumen {
+  .mega__subs {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
     font-size: 0.87rem;
     color: var(--tinta-suave);
-    margin: 0;
+  }
+
+  .mega__subs a:hover {
+    color: var(--salvia);
   }
 
   .mega__aparte {
@@ -375,7 +384,7 @@ try {
   }
 
   .accion:hover {
-    border-color: rgba(33, 30, 30, 0.2);
+    border-color: var(--cafe-linea);
     color: var(--cafe);
   }
 

@@ -1,0 +1,256 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+if (!yo) return Astro.redirect('/admin');
+
+const r = await traer('/resumen', token);
+const soles = (n) => 'S/ ' + Number(n).toFixed(2);
+const fecha = (iso) =>
+  new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+const mes = new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+
+const ESTADOS = {
+  nuevo: 'Nuevo',
+  pago_confirmado: 'Pago confirmado',
+  preparando: 'Preparando',
+  enviado: 'Enviado',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado',
+  no_concretado: 'No concretado',
+};
+---
+
+<Admin title="Resumen" seccion="dashboard" sesion={true}>
+  <header class="cab">
+    <div>
+      <p class="kicker">Panel</p>
+      <h1 class="titulo">Resumen</h1>
+    </div>
+    <p class="cab__resumen">Ventas de {mes}. Un pedido cuenta desde que confirmas su pago.</p>
+  </header>
+
+  {!r && <p class="aviso-api">No se pudo hablar con la API.</p>}
+
+  {
+    r && (
+      <>
+        <div class="cifras">
+          <a class="cifra" href="/admin">
+            <span class="cifra__n">{r.por_atender}</span>
+            <span class="cifra__e">Por atender</span>
+            <span class="cifra__d">Nuevos o con pago confirmado</span>
+          </a>
+          <div class="cifra">
+            <span class="cifra__n">{r.pedidos_del_mes}</span>
+            <span class="cifra__e">Pedidos del mes</span>
+            <span class="cifra__d">Con el pago ya confirmado</span>
+          </div>
+          <div class="cifra">
+            <span class="cifra__n">{soles(r.ventas_del_mes)}</span>
+            <span class="cifra__e">Ventas del mes</span>
+            <span class="cifra__d">Ticket promedio {soles(r.ticket_promedio)}</span>
+          </div>
+          <a class="cifra" href="/admin/productos?stock_bajo=1&activo=true">
+            <span class:list={['cifra__n', r.productos_escasos.length > 0 && 'alerta']}>
+              {r.productos_escasos.length}
+            </span>
+            <span class="cifra__e">Con poco stock</span>
+            <span class="cifra__d">{r.stock_bajo_desde} unidades o menos</span>
+          </a>
+        </div>
+
+        <div class="columnas">
+          <section class="bloque">
+            <h2 class="subtitulo">Últimos pedidos</h2>
+            {r.ultimos_pedidos.length === 0 && <p class="vacio">Todavía no hay pedidos.</p>}
+            <ul class="lista">
+              {r.ultimos_pedidos.map((p) => (
+                <li>
+                  <span>
+                    <strong>{p.numero_pedido}</strong>
+                    <span class="pista">{p.nombre_contacto} · {fecha(p.creado_en)}</span>
+                  </span>
+                  <span class="derecha">
+                    {soles(p.total)}
+                    <span class="pista">{ESTADOS[p.estado] ?? p.estado}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section class="bloque">
+            <h2 class="subtitulo">Top 5 del mes</h2>
+            {r.top_del_mes.length === 0 && (
+              <p class="vacio">Sin ventas confirmadas este mes.</p>
+            )}
+            <ul class="lista">
+              {r.top_del_mes.map((p) => (
+                <li>
+                  <span>
+                    <strong>{p.nombre}</strong>
+                    <span class="pista">{p.codigo}</span>
+                  </span>
+                  <span class="derecha">
+                    {p.unidades} u.
+                    <span class="pista">{soles(p.importe)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section class="bloque">
+            <h2 class="subtitulo">Se está acabando</h2>
+            {r.productos_escasos.length === 0 && (
+              <p class="vacio">Ningún producto activo está por acabarse.</p>
+            )}
+            <ul class="lista">
+              {r.productos_escasos.map((p) => (
+                <li>
+                  <span>
+                    <strong>{p.nombre}</strong>
+                    <span class="pista">{p.codigo}</span>
+                  </span>
+                  <span class:list={['derecha', p.stock === 0 && 'alerta']}>
+                    {p.stock === 0 ? 'Agotado' : `${p.stock} u.`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      </>
+    )
+  }
+</Admin>
+
+<style>
+  .cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.8rem;
+  }
+
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .aviso-api {
+    border-left: 3px solid var(--rojo);
+    padding-left: 0.9rem;
+    color: var(--rojo);
+  }
+
+  .cifras {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 2rem;
+  }
+
+  .cifra {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1.1rem 1.2rem;
+  }
+
+  a.cifra:hover {
+    border-color: var(--salvia);
+  }
+
+  .cifra__n {
+    font-family: var(--titular);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--cafe);
+    line-height: 1.1;
+  }
+
+  .cifra__e {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--salvia);
+    margin-top: 0.3rem;
+  }
+
+  .cifra__d {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin-top: 0.2rem;
+  }
+
+  .alerta {
+    color: var(--henna);
+  }
+
+  .columnas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.6rem;
+    align-items: start;
+  }
+
+  .bloque .subtitulo {
+    margin-bottom: 0.9rem;
+  }
+
+  .lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+  }
+
+  .lista li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--linea);
+    font-size: 0.9rem;
+  }
+
+  .lista li:last-child {
+    border-bottom: none;
+  }
+
+  .pista {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+    font-weight: 400;
+  }
+
+  .derecha {
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--titular);
+  }
+
+  .vacio {
+    color: var(--tinta-suave);
+    border: 1px dashed var(--linea-fuerte);
+    border-radius: var(--radio);
+    padding: 1.6rem 1rem;
+    text-align: center;
+    font-size: 0.88rem;
+  }
+</style>

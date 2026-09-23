@@ -1,0 +1,63 @@
+---
+// Foto del producto alojada en Cloudinary. Si el producto todavía no tiene
+// foto (pasa con los borradores que aún no tienen datos), muestra un marco
+// neutro con el sello en vez de dejar el hueco vacío.
+import { urlCloudinary } from '../lib/cloudinary.js';
+
+const { producto, alto = false, sizes = '(max-width: 700px) 50vw, 300px' } = Astro.props;
+
+const foto = producto.imagenes?.[0];
+const anchos = alto ? [400, 700, 1000] : [300, 500, 700];
+---
+
+{
+  foto ? (
+    <img
+      class="foto"
+      src={urlCloudinary(foto.url, anchos[1])}
+      srcset={anchos.map((w) => `${urlCloudinary(foto.url, w)} ${w}w`).join(', ')}
+      sizes={sizes}
+      alt={producto.nombre}
+      width="700"
+      height="840"
+      loading={alto ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  ) : (
+    <span class="sin-foto">
+      <img src="/logo-1.png" alt="" width="72" height="72" />
+      <span>Foto en camino</span>
+    </span>
+  )
+}
+
+<style>
+  .foto {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
+  }
+
+  .sin-foto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    background: var(--papel);
+    color: var(--tinta-suave);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .sin-foto img {
+    width: 72px;
+    height: auto;
+    opacity: 0.45;
+  }
+</style>

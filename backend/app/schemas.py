@@ -2,52 +2,67 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.models import EstadoPedido, MetodoPago
+from app.models import EstadoPedido
 
 
-class CategoriaOut(BaseModel):
+class Breve(BaseModel):
+    """Lo mínimo para pintar un enlace: sirve a marca, categoría y subcategoría."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     nombre: str
     slug: str
+
+
+class SubcategoriaOut(Breve):
     orden: int
 
 
-class CategoriaBreve(BaseModel):
-    """Categoría anidada dentro de un producto."""
+class CategoriaOut(Breve):
+    orden: int
+    subcategorias: list[SubcategoriaOut] = []
+
+
+class SubcategoriaBreve(Breve):
+    """Subcategoría anidada dentro de un producto, con su categoría."""
+
+    categoria: Breve
+
+
+class ImagenOut(BaseModel):
+    """Foto de Cloudinary. La de `orden` 1 es la principal del producto."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    nombre: str
-    slug: str
+    url: str
+    orden: int
+    tipo: str | None = None
 
 
 class ProductoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    codigo: str
     nombre: str
     slug: str
     descripcion_corta: str | None = None
     descripcion_larga: str | None = None
     modo_uso: str | None = None
     presentacion: str | None = None
-    origen: str | None = None
     beneficios: list[str] = []
     precio: Decimal = Field(examples=["34.90"])
     precio_antes: Decimal | None = Field(default=None, examples=["42.00"])
-    imagen_url: str | None = None
+    imagenes: list[ImagenOut] = []
     stock: int
     activo: bool
     destacado: bool
     mas_vendido: bool
-    categoria: CategoriaBreve
+    marca: Breve
+    subcategoria: SubcategoriaBreve
     creado_en: datetime
     actualizado_en: datetime | None = None
 
@@ -75,11 +90,11 @@ class PedidoCrear(BaseModel):
     nombre_contacto: str = Field(min_length=3, max_length=150, examples=["Ana Torres"])
     telefono_contacto: str = Field(min_length=9, max_length=20, examples=["987654321"])
     correo: str | None = Field(default=None, max_length=150)
-    entrega: Literal["delivery", "tienda"]
-    direccion: str | None = Field(default=None, max_length=300)
-    distrito: str | None = Field(default=None, max_length=100)
+    direccion: str = Field(min_length=5, max_length=300, examples=["Av. Siempre Viva 123"])
+    # Código INEI del distrito de entrega: de ahí salen el departamento, la
+    # provincia y el costo del envío.
+    ubigeo: str = Field(min_length=6, max_length=6, examples=["150122"])
     referencia: str | None = Field(default=None, max_length=300)
-    metodo_pago: MetodoPago
     nota: str | None = Field(default=None, max_length=1000)
     items: list[PedidoItemEntrada] = Field(min_length=1)
 
@@ -110,14 +125,99 @@ class PedidoOut(BaseModel):
     nombre_contacto: str
     telefono_contacto: str
     email_contacto: str | None = None
-    entrega: Literal["delivery", "tienda"]
-    direccion_envio: str | None = None
+    direccion_envio: str
+    departamento: str | None = None
+    provincia: str | None = None
     distrito: str | None = None
+    ubigeo: str | None = None
     referencia: str | None = None
-    metodo_pago: MetodoPago | None = None
     nota: str | None = None
     subtotal: Decimal = Field(examples=["69.80"])
-    envio: Decimal = Field(examples=["12.00"])
+    envio: Decimal = Field(examples=["10.00"])
     total: Decimal = Field(examples=["81.80"])
     items: list[PedidoItemOut]
     creado_en: datetime
+
+
+class PedidoAdminOut(PedidoOut):
+    """Lo mismo que ve el cliente, más lo que solo existe en el panel."""
+
+    courier: str | None = None
+    codigo_seguimiento: str | None = None
+    nota_interna: str | None = None
+
+
+# ── Panel: catálogo ──────────────────────────────────────────────────
+
+
+class ImagenAdminOut(ImagenOut):
+    id: int
+
+
+class ProductoAdminOut(ProductoOut):
+    """Lo que ve el panel: incluye los inactivos y el id de cada foto."""
+
+    imagenes: list[ImagenAdminOut] = []
+    creado_en: datetime
+    actualizado_en: datetime | None = None
+
+
+class ProductoEntrada(BaseModel):
+    """Campos que el panel manda al crear o editar un producto."""
+
+    nombre: str = Field(min_length=2, max_length=150)
+    slug: str = Field(min_length=2, max_length=150, pattern=r"^[a-z0-9-]+$")
+    marca_id: int
+    subcategoria_id: int
+    precio: Decimal = Field(ge=0, examples=["28.50"])
+    precio_antes: Decimal | None = Field(default=None, ge=0)
+    stock: int = Field(ge=0, le=99999)
+    activo: bool = True
+    destacado: bool = False
+    mas_vendido: bool = False
+    presentacion: str | None = Field(default=None, max_length=120)
+    descripcion_corta: str | None = None
+    descripcion_larga: str | None = None
+    modo_uso: str | None = None
+    beneficios: list[str] = []
+
+    @model_validator(mode="after")
+    def _oferta_coherente(self):
+        """Un precio tachado que no sea mayor que el vigente no es una oferta."""
+        if self.precio_antes is not None and self.precio_antes <= self.precio:
+            raise ValueError("El precio anterior debe ser mayor que el precio actual.")
+        return self
+
+
+class ProductoCrear(ProductoEntrada):
+    codigo: str = Field(min_length=3, max_length=10, pattern=r"^[A-Z0-9-]+$")
+
+
+class CambioStock(BaseModel):
+    stock: int = Field(ge=0, le=99999)
+
+
+class CambioActivo(BaseModel):
+    activo: bool
+
+
+class ImagenEntrada(BaseModel):
+    tipo: str | None = Field(default=None, max_length=50)
+
+
+class OrdenImagenes(BaseModel):
+    """Los ids de las fotos en el orden nuevo; la primera es la principal."""
+
+    ids: list[int] = Field(min_length=1)
+
+
+# ── Ubigeo ───────────────────────────────────────────────────────────
+
+
+class LugarOut(BaseModel):
+    """Departamento, provincia o distrito: todos tienen código y nombre."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    codigo: str
+    nombre: str
