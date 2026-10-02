@@ -504,30 +504,71 @@ export default (Alpine) => {
       if (p) this.fotos = p.imagenes ?? [];
     },
 
-    async importar(evento) {
-      const archivo = evento.target.files?.[0];
-      if (!archivo) return;
-      this.importando = true;
-      this.mensaje = '';
-      this.error = false;
+    // Importar va en dos pasos: primero se simula (valida todo sin guardar) y
+    // solo si no hay errores se ofrece confirmar. El archivo queda en memoria
+    // entre ambos pasos.
+    previa: null,
+    archivoImport: null,
 
+    async _enviarPlanilla(simular) {
       const datos = new FormData();
-      datos.append('archivo', archivo);
-      const respuesta = await fetch('/api/admin/productos/importar', {
-        method: 'POST',
-        body: datos,
-      });
-      this.importando = false;
-      evento.target.value = '';
-
+      datos.append('archivo', this.archivoImport);
+      const respuesta = await fetch(
+        `/api/admin/productos/importar${simular ? '?simular=true' : ''}`,
+        { method: 'POST', body: datos }
+      );
       const cuerpo = await respuesta.json().catch(() => ({}));
       if (!respuesta.ok) {
-        this.error = true;
-        this.mensaje = cuerpo.detail ?? 'No se pudo importar la planilla.';
-        return;
+        throw new Error(
+          typeof cuerpo.detail === 'string' ? cuerpo.detail : 'No se pudo leer la planilla.'
+        );
       }
-      this.mensaje = `${cuerpo.creados} creados y ${cuerpo.actualizados} actualizados.`;
-      setTimeout(() => location.reload(), 1200);
+      return cuerpo;
+    },
+
+    async importar(evento) {
+      const archivo = evento.target.files?.[0];
+      evento.target.value = '';
+      if (!archivo) return;
+      this.archivoImport = archivo;
+      this.previa = null;
+      this.mensaje = '';
+      this.error = false;
+      this.importando = true;
+      try {
+        this.previa = await this._enviarPlanilla(true);
+      } catch (e) {
+        this.error = true;
+        this.mensaje = e.message || 'No se pudo conectar con el servidor.';
+        this.archivoImport = null;
+      } finally {
+        this.importando = false;
+      }
+    },
+
+    cancelarImport() {
+      this.previa = null;
+      this.archivoImport = null;
+    },
+
+    async confirmarImport() {
+      this.importando = true;
+      try {
+        const r = await this._enviarPlanilla(false);
+        if (!r.aplicado) {
+          this.previa = r;
+          return;
+        }
+        this.previa = null;
+        this.archivoImport = null;
+        this.mensaje = `Listo: ${r.creados} creados y ${r.actualizados} actualizados.`;
+        setTimeout(() => location.reload(), 1200);
+      } catch (e) {
+        this.error = true;
+        this.mensaje = e.message || 'No se pudo conectar con el servidor.';
+      } finally {
+        this.importando = false;
+      }
     },
   }));
 
@@ -536,6 +577,8 @@ export default (Alpine) => {
   Alpine.data('clasificacionAdmin', (inicial) => ({
     categorias: inicial.categorias,
     marcas: inicial.marcas,
+    papelera: inicial.papelera ?? { categorias: [], subcategorias: [], marcas: [] },
+    verPapelera: false,
     form: null,
     guardando: false,
     errorForm: '',
@@ -622,40 +665,71 @@ export default (Alpine) => {
       await this.recargar();
     },
 
+    // Borrar manda a la papelera: se puede deshacer, así que no pide confirmación.
     async borrarCategoria(c) {
-      if (!confirm(`Se borra la categoría "${c.nombre}". ¿Continuar?`)) return;
-      await this._borrar(`/categorias/${c.id}`);
+      await this._borrar(`/categorias/${c.id}`, `«${c.nombre}» está en la papelera.`);
     },
 
     async borrarSubcategoria(s) {
-      if (!confirm(`Se borra la subcategoría "${s.nombre}". ¿Continuar?`)) return;
-      await this._borrar(`/subcategorias/${s.id}`);
+      await this._borrar(`/subcategorias/${s.id}`, `«${s.nombre}» está en la papelera.`);
     },
 
     async borrarMarca(m) {
-      if (!confirm(`Se borra la marca "${m.nombre}". ¿Continuar?`)) return;
-      await this._borrar(`/marcas/${m.id}`);
+      await this._borrar(`/marcas/${m.id}`, `«${m.nombre}» está en la papelera.`);
     },
 
-    async _borrar(ruta) {
-      const respuesta = await fetch(`/api/admin${ruta}`, { method: 'DELETE' });
+    async _borrar(ruta, aviso) {
+      const respuesta = await peticionAdmin(ruta, 'DELETE', null, true);
       if (!respuesta.ok) {
-        const datos = await respuesta.json().catch(() => ({}));
         this.error = true;
-        this.mensaje = datos.detail ?? 'No se pudo borrar.';
+        this.mensaje = respuesta.error;
         return;
       }
       this.error = false;
-      this.mensaje = 'Borrado';
+      this.mensaje = aviso;
+      this.verPapelera = true;
       await this.recargar();
     },
 
+    // ── Papelera ──
+    async restaurar(tipo, x) {
+      const respuesta = await peticionAdmin(
+        `/papelera/${tipo}/${x.id}/restaurar`,
+        'POST',
+        {},
+        true
+      );
+      this.error = !respuesta.ok;
+      this.mensaje = respuesta.ok ? `«${x.nombre}» volvió a su lugar.` : respuesta.error;
+      await this.recargar();
+    },
+
+    async eliminarSiempre(tipo, x) {
+      if (!confirm(`Se elimina «${x.nombre}» para siempre y no se puede recuperar. ¿Continuar?`)) {
+        return;
+      }
+      const respuesta = await peticionAdmin(`/papelera/${tipo}/${x.id}`, 'DELETE', null, true);
+      this.error = !respuesta.ok;
+      this.mensaje = respuesta.ok ? 'Eliminado para siempre.' : respuesta.error;
+      await this.recargar();
+    },
+
+    get enPapelera() {
+      const p = this.papelera;
+      return p.categorias.length + p.subcategorias.length + p.marcas.length;
+    },
+
     async recargar() {
-      const datos = await peticionAdmin('/clasificacion');
-      if (!datos) return;
-      this.categorias = datos.categorias;
-      this.marcas = datos.marcas;
-      setTimeout(() => (this.mensaje = ''), 2500);
+      const [datos, papelera] = await Promise.all([
+        peticionAdmin('/clasificacion'),
+        peticionAdmin('/papelera'),
+      ]);
+      if (datos) {
+        this.categorias = datos.categorias;
+        this.marcas = datos.marcas;
+      }
+      if (papelera) this.papelera = papelera;
+      setTimeout(() => (this.mensaje = ''), 4000);
     },
   }));
 
@@ -753,10 +827,14 @@ export default (Alpine) => {
     get errores() {
       const e = {};
       const d = this.datos;
+      // Los topes van iguales que en backend/app/schemas.py (PedidoCrear).
       if (d.nombre.trim().length < 3) e.nombre = 'Escribe tu nombre completo';
+      else if (d.nombre.length > 40) e.nombre = 'Máximo 40 caracteres';
       if (!/^[0-9\s+]{9,15}$/.test(d.telefono.trim())) e.telefono = 'Un número de 9 dígitos';
-      if (d.correo && !d.correo.includes('@')) e.correo = 'Correo inválido';
+      if (d.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.correo.trim())) e.correo = 'Correo inválido';
+      else if (d.correo.length > 80) e.correo = 'Máximo 80 caracteres';
       if (d.direccion.trim().length < 5) e.direccion = 'Calle y número';
+      else if (d.direccion.length > 100) e.direccion = 'Máximo 100 caracteres';
       if (!d.departamento) e.departamento = 'Elige tu departamento';
       else if (!d.provincia) e.provincia = 'Elige tu provincia';
       else if (!d.distrito) e.distrito = 'Elige tu distrito';

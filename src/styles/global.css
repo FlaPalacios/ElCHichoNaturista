@@ -356,6 +356,23 @@ p {
   color: var(--tinta);
 }
 
+/* Solo se estira hacia abajo y hasta un tope: el resize libre rompía el
+   diseño al arrastrar la esquina hacia los lados o fuera de la tarjeta. */
+.campo textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+  max-height: 14rem;
+  line-height: 1.45;
+}
+
+.campo__contador {
+  display: block;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--tinta-suave);
+  margin-top: 0.25rem;
+}
+
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {

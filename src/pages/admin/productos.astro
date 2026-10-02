@@ -149,6 +149,7 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
 
     <div class="acciones">
       <button class="btn" type="button" @click="abrirNuevo()">Nuevo producto</button>
+      <a class="btn btn--linea" href="/admin/categorias" title="Crear, editar o mandar a la papelera marcas, categorías y subcategorías">Marcas y categorías</a>
       <a class="btn btn--linea" href="/api/admin/productos/exportar" download>Exportar TSV</a>
       <label class="btn btn--linea importar">
         <span x-text="importando ? 'Importando…' : 'Importar TSV'">Importar TSV</span>
@@ -157,6 +158,46 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
     </div>
 
     <p class="mensaje" x-show="mensaje" x-text="mensaje" :class="error && 'mensaje--error'" x-cloak></p>
+
+    <!-- Vista previa de la importación: nada se guarda hasta confirmar. -->
+    <section class="previa" x-show="previa" x-cloak>
+      <h2 class="previa__t">Vista previa de la planilla</h2>
+      <template x-for="a in previa?.avisos || []">
+        <p class="previa__aviso" x-text="a"></p>
+      </template>
+
+      <template x-if="previa && previa.errores.length === 0">
+        <div>
+          <p>
+            Se van a crear <strong x-text="previa.creados"></strong> productos y actualizar
+            <strong x-text="previa.actualizados"></strong>. Las celdas de texto vacías borran el
+            dato actual; las de activo, destacado y más vendido vacías lo dejan como está.
+          </p>
+          <p class="previa__aviso" x-show="previa.codigos_nuevos.length" x-text="'Nuevos: ' + previa.codigos_nuevos.join(', ')"></p>
+          <div class="acciones">
+            <button class="btn" type="button" @click="confirmarImport()" :disabled="importando">
+              <span x-text="importando ? 'Importando…' : 'Confirmar importación'"></span>
+            </button>
+            <button class="btn btn--linea" type="button" @click="cancelarImport()" :disabled="importando">Cancelar</button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="previa && previa.errores.length > 0">
+        <div>
+          <p class="mensaje--error">
+            No se guardó nada. Corrige estas <span x-text="previa.errores.length"></span> líneas y vuelve a subir el archivo:
+          </p>
+          <ul class="previa__errores">
+            <template x-for="e in previa.errores.slice(0, 50)">
+              <li x-text="e"></li>
+            </template>
+          </ul>
+          <p class="previa__aviso" x-show="previa.errores.length > 50" x-text="'… y ' + (previa.errores.length - 50) + ' más.'"></p>
+          <button class="btn btn--linea" type="button" @click="cancelarImport()">Cerrar</button>
+        </div>
+      </template>
+    </section>
 
     <!-- ── Tabla ────────────────────────────────────────────── -->
     <table class="tabla">
@@ -263,13 +304,13 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
             </label>
             <label class="campo">
               <span class="campo__etq">Presentación</span>
-              <input type="text" x-model="form.presentacion" placeholder="500 g, 1 L…" />
+              <input type="text" x-model="form.presentacion" maxlength="120" placeholder="500 g, 1 L…" />
             </label>
           </div>
 
           <label class="campo">
             <span class="campo__etq">Nombre</span>
-            <input type="text" x-model="form.nombre" @input="sugerirSlug()" required />
+            <input type="text" x-model="form.nombre" maxlength="150" @input="sugerirSlug()" required />
           </label>
 
           <label class="campo">
@@ -337,22 +378,27 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
 
           <label class="campo">
             <span class="campo__etq">Descripción corta</span>
-            <textarea x-model="form.descripcion_corta" rows="2"></textarea>
+            <textarea x-model="form.descripcion_corta" rows="2" maxlength="160"></textarea>
+            <span class="campo__contador" x-text="(form.descripcion_corta || '').length + ' / 160'"></span>
           </label>
 
           <label class="campo">
             <span class="campo__etq">Descripción larga</span>
-            <textarea x-model="form.descripcion_larga" rows="4"></textarea>
+            <textarea x-model="form.descripcion_larga" rows="4" maxlength="1500"></textarea>
+            <span class="campo__contador" x-text="(form.descripcion_larga || '').length + ' / 1500'"></span>
           </label>
 
           <label class="campo">
             <span class="campo__etq">Modo de uso</span>
-            <textarea x-model="form.modo_uso" rows="3"></textarea>
+            <textarea x-model="form.modo_uso" rows="3" maxlength="600"></textarea>
+            <span class="campo__contador" x-text="(form.modo_uso || '').length + ' / 600'"></span>
           </label>
 
           <label class="campo">
-            <span class="campo__etq">Beneficios (uno por línea)</span>
-            <textarea x-model="beneficiosTexto" rows="4" placeholder="Sin lactosa&#10;Rica en omegas"></textarea>
+            <span class="campo__etq">Beneficios (uno por línea, hasta 8 de 80 letras)</span>
+            <textarea x-model="beneficiosTexto" rows="4" maxlength="720" placeholder="Sin lactosa&#10;Rica en omegas"></textarea>
+            <span class="campo__contador" x-text="beneficiosTexto.split('
+').filter((l) => l.trim()).length + ' / 8 beneficios'"></span>
           </label>
 
           <!-- Fotos: solo con el producto ya creado, porque se guardan por código. -->
@@ -468,6 +514,32 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
     inset: 0;
     opacity: 0;
     cursor: pointer;
+  }
+
+  .previa {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .previa__t {
+    font-size: 1.05rem;
+    margin: 0 0 0.6rem;
+  }
+
+  .previa__aviso {
+    font-size: 0.82rem;
+    color: var(--tinta-suave);
+  }
+
+  .previa__errores {
+    max-height: 14rem;
+    overflow-y: auto;
+    font-size: 0.84rem;
+    padding-left: 1.2rem;
+    margin: 0.5rem 0 1rem;
   }
 
   .mensaje {

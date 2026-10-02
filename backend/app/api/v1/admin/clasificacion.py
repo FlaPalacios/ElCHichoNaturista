@@ -7,6 +7,7 @@ clasifica un producto.
 
 import re
 import unicodedata
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -69,11 +70,36 @@ class MarcaAdminOut(Breve):
 def _slug_libre(sesion: Session, modelo, slug: str, excepto: int | None = None) -> str:
     choque = sesion.scalar(select(modelo).where(modelo.slug == slug))
     if choque is not None and choque.id != excepto:
+        detalle = (
+            " Está en la papelera: restáurala o elimínala para siempre."
+            if choque.eliminado_en
+            else " Usa otro nombre."
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Ya existe algo con la dirección '{slug}'. Usa otro nombre.",
+            detail=f"Ya existe algo con la dirección '{slug}'." + detalle,
         )
     return slug
+
+
+def _vivo(sesion: Session, modelo, clave: int, que: str):
+    """La fila, o 404 si no existe o está en la papelera."""
+    fila = sesion.get(modelo, clave)
+    if fila is None or fila.eliminado_en is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No existe esa {que}.")
+    return fila
+
+
+def _categoria_viva(sesion: Session, categoria_id: int) -> None:
+    categoria = sesion.get(Categoria, categoria_id)
+    if categoria is None or categoria.eliminado_en is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "No existe esa categoría."
+        )
+
+
+def _ahora() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _cuantos_productos(sesion: Session, columna) -> dict[int, int]:
@@ -96,8 +122,15 @@ def listar_clasificacion(
     por_marca = _cuantos_productos(sesion, Producto.marca_id)
 
     categorias = []
-    for c in sesion.scalars(select(Categoria).order_by(Categoria.orden, Categoria.nombre)):
-        subs = sorted(c.subcategorias, key=lambda s: (s.orden, s.nombre))
+    for c in sesion.scalars(
+        select(Categoria)
+        .where(Categoria.eliminado_en.is_(None))
+        .order_by(Categoria.orden, Categoria.nombre)
+    ):
+        subs = sorted(
+            (x for x in c.subcategorias if x.eliminado_en is None),
+            key=lambda s: (s.orden, s.nombre),
+        )
         categorias.append(
             CategoriaAdminOut(
                 id=c.id,
@@ -129,7 +162,9 @@ def listar_clasificacion(
             orden=m.orden,
             productos=por_marca.get(m.id, 0),
         )
-        for m in sesion.scalars(select(Marca).order_by(Marca.orden, Marca.nombre))
+        for m in sesion.scalars(
+            select(Marca).where(Marca.eliminado_en.is_(None)).order_by(Marca.orden, Marca.nombre)
+        )
     ]
     return {"categorias": categorias, "marcas": marcas}
 
@@ -164,9 +199,7 @@ def editar_categoria(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    categoria = sesion.get(Categoria, categoria_id)
-    if categoria is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa categoría.")
+    categoria = _vivo(sesion, Categoria, categoria_id, "categoría")
     categoria.slug = _slug_libre(
         sesion, Categoria, datos.slug or slugificar(datos.nombre), categoria_id
     )
@@ -180,7 +213,7 @@ def editar_categoria(
 @router.delete(
     "/categorias/{categoria_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Borra una categoría vacía",
+    summary="Manda una categoría vacía a la papelera",
 )
 def borrar_categoria(
     categoria_id: int,
@@ -188,15 +221,13 @@ def borrar_categoria(
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
     """Solo si no cuelga nada de ella: así no se pierde el rastro de un producto."""
-    categoria = sesion.get(Categoria, categoria_id)
-    if categoria is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa categoría.")
-    if categoria.subcategorias:
+    categoria = _vivo(sesion, Categoria, categoria_id, "categoría")
+    if any(x.eliminado_en is None for x in categoria.subcategorias):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "Esa categoría todavía tiene subcategorías. Bórralas o muévelas primero.",
+            "Esa categoría todavía tiene subcategorías. Mándalas a la papelera o muévelas primero.",
         )
-    sesion.delete(categoria)
+    categoria.eliminado_en = _ahora()
     sesion.commit()
 
 
@@ -214,10 +245,7 @@ def crear_subcategoria(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    if sesion.get(Categoria, datos.categoria_id) is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "No existe esa categoría."
-        )
+    _categoria_viva(sesion, datos.categoria_id)
     slug = _slug_libre(sesion, Subcategoria, datos.slug or slugificar(datos.nombre))
     sub = Subcategoria(
         nombre=datos.nombre,
@@ -242,13 +270,8 @@ def editar_subcategoria(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    sub = sesion.get(Subcategoria, subcategoria_id)
-    if sub is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa subcategoría.")
-    if sesion.get(Categoria, datos.categoria_id) is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "No existe esa categoría."
-        )
+    sub = _vivo(sesion, Subcategoria, subcategoria_id, "subcategoría")
+    _categoria_viva(sesion, datos.categoria_id)
     sub.slug = _slug_libre(
         sesion, Subcategoria, datos.slug or slugificar(datos.nombre), subcategoria_id
     )
@@ -263,16 +286,14 @@ def editar_subcategoria(
 @router.delete(
     "/subcategorias/{subcategoria_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Borra una subcategoría sin productos",
+    summary="Manda una subcategoría sin productos a la papelera",
 )
 def borrar_subcategoria(
     subcategoria_id: int,
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    sub = sesion.get(Subcategoria, subcategoria_id)
-    if sub is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa subcategoría.")
+    sub = _vivo(sesion, Subcategoria, subcategoria_id, "subcategoría")
     cuantos = sesion.scalar(
         select(func.count(Producto.id)).where(Producto.subcategoria_id == subcategoria_id)
     )
@@ -281,7 +302,7 @@ def borrar_subcategoria(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"Tiene {cuantos} producto(s). Muévelos a otra subcategoría primero.",
         )
-    sesion.delete(sub)
+    sub.eliminado_en = _ahora()
     sesion.commit()
 
 
@@ -313,9 +334,7 @@ def editar_marca(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    marca = sesion.get(Marca, marca_id)
-    if marca is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa marca.")
+    marca = _vivo(sesion, Marca, marca_id, "marca")
     marca.slug = _slug_libre(
         sesion, Marca, datos.slug or slugificar(datos.nombre), marca_id
     )
@@ -328,16 +347,14 @@ def editar_marca(
 @router.delete(
     "/marcas/{marca_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Borra una marca sin productos",
+    summary="Manda una marca sin productos a la papelera",
 )
 def borrar_marca(
     marca_id: int,
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    marca = sesion.get(Marca, marca_id)
-    if marca is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No existe esa marca.")
+    marca = _vivo(sesion, Marca, marca_id, "marca")
     cuantos = sesion.scalar(
         select(func.count(Producto.id)).where(Producto.marca_id == marca_id)
     )
@@ -346,5 +363,94 @@ def borrar_marca(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"Tiene {cuantos} producto(s). Cámbiales la marca primero.",
         )
-    sesion.delete(marca)
+    marca.eliminado_en = _ahora()
+    sesion.commit()
+
+
+# ── Papelera ─────────────────────────────────────────────────────────
+
+MODELOS_PAPELERA = {
+    "categorias": (Categoria, "categoría"),
+    "subcategorias": (Subcategoria, "subcategoría"),
+    "marcas": (Marca, "marca"),
+}
+
+
+def _en_papelera(sesion: Session, tipo: str, clave: int):
+    if tipo not in MODELOS_PAPELERA:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tipo desconocido.")
+    modelo, que = MODELOS_PAPELERA[tipo]
+    fila = sesion.get(modelo, clave)
+    if fila is None or fila.eliminado_en is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Esa {que} no está en la papelera.")
+    return fila
+
+
+def _en_orden(modelo):
+    return select(modelo).where(modelo.eliminado_en.is_not(None)).order_by(
+        modelo.eliminado_en.desc()
+    )
+
+
+@router.get("/papelera", summary="Lo que se mandó a la papelera")
+def ver_papelera(
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    def fila(x, **extra):
+        return {
+            "id": x.id,
+            "nombre": x.nombre,
+            "slug": x.slug,
+            "eliminado_en": x.eliminado_en,
+            **extra,
+        }
+
+    return {
+        "categorias": [fila(c) for c in sesion.scalars(_en_orden(Categoria))],
+        "subcategorias": [
+            fila(s, categoria=s.categoria.nombre)
+            for s in sesion.scalars(_en_orden(Subcategoria))
+        ],
+        "marcas": [fila(m) for m in sesion.scalars(_en_orden(Marca))],
+    }
+
+
+@router.post("/papelera/{tipo}/{clave}/restaurar", summary="Saca algo de la papelera")
+def restaurar(
+    tipo: str,
+    clave: int,
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    fila = _en_papelera(sesion, tipo, clave)
+    if tipo == "subcategorias" and fila.categoria.eliminado_en is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Su categoría «{fila.categoria.nombre}» está en la papelera. Restáurala primero.",
+        )
+    fila.eliminado_en = None
+    sesion.commit()
+    return {"restaurado": True}
+
+
+@router.delete(
+    "/papelera/{tipo}/{clave}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Elimina para siempre lo que está en la papelera",
+)
+def eliminar_definitivo(
+    tipo: str,
+    clave: int,
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    fila = _en_papelera(sesion, tipo, clave)
+    if tipo == "categorias" and fila.subcategorias:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Esa categoría aún tiene subcategorías (activas o en la papelera). "
+            "Elimínalas o muévelas primero.",
+        )
+    sesion.delete(fila)
     sesion.commit()

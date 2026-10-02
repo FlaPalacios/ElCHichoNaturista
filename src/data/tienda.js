@@ -9,8 +9,8 @@ export const tienda = {
   correo: 'hola@elchiconaturista.pe',
   direccion: 'Las Camelias, Mz. K Lt. 17 – Los Olivos, Lima',
   horario: 'Lunes a sábado · 9:00 a 19:00',
-  instagram: 'https://instagram.com/elchiconaturista',
-  facebook: 'https://facebook.com/elchiconaturista',
+  tiktok: 'https://www.tiktok.com/@el.chico.naturista',
+  linkedin: 'https://www.linkedin.com/company/el-chico-naturista/posts/?feedView=all',
   envioGratisDesde: 120,
   avisos: [
     'Envíos a todo el Perú · Delivery el mismo día en Lima',

@@ -15,10 +15,10 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import crud, fotos
+from app import importar as importar_tsv
 from app import tienda as ajustes_tienda
 from app.database import obtener_sesion
 from app.models import Admin, ImagenProducto, Marca, Producto, Subcategoria
@@ -36,11 +36,7 @@ router = APIRouter(prefix="/productos", tags=["admin"])
 
 # Mismas columnas que `app/datos/catalogo.tsv`, para que exportar e importar
 # sean la misma planilla.
-COLUMNAS_TSV = [
-    "codigo", "nombre", "slug", "marca_slug", "categoria_slug", "subcategoria_slug",
-    "precio", "precio_antes", "presentacion", "descripcion_corta", "descripcion_larga",
-    "modo_uso", "beneficios", "stock", "activo", "destacado", "mas_vendido",
-]
+COLUMNAS_TSV = importar_tsv.COLUMNAS
 
 
 def _buscar(sesion: Session, codigo: str) -> Producto:
@@ -54,12 +50,14 @@ def _buscar(sesion: Session, codigo: str) -> Producto:
 
 
 def _validar_relaciones(sesion: Session, marca_id: int, subcategoria_id: int) -> None:
-    if sesion.get(Marca, marca_id) is None:
+    marca = sesion.get(Marca, marca_id)
+    if marca is None or marca.eliminado_en is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"No existe la marca {marca_id}.",
         )
-    if sesion.get(Subcategoria, subcategoria_id) is None:
+    sub = sesion.get(Subcategoria, subcategoria_id)
+    if sub is None or sub.eliminado_en is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"No existe la subcategoría {subcategoria_id}.",
@@ -153,84 +151,30 @@ def exportar(
 @router.post(
     "/importar",
     summary="Carga productos desde una planilla TSV",
-    responses={422: {"description": "La planilla tiene errores"}},
+    responses={422: {"description": "La planilla entera no sirve"}},
 )
 async def importar(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
     archivo: Annotated[UploadFile, File(description="Planilla TSV")],
+    simular: Annotated[
+        bool, Query(description="Solo valida y cuenta; no guarda nada.")
+    ] = False,
 ):
     """Crea los productos nuevos y actualiza los que ya existen, por `codigo`.
-    Si alguna fila falla, no se guarda nada: o entra toda la planilla o ninguna."""
-    crudo = (await archivo.read()).decode("utf-8-sig", errors="replace")
-    filas = list(csv.DictReader(io.StringIO(crudo), delimiter="\t"))
-    if not filas:
+
+    Responde siempre con el mismo resumen: cuántos crea y actualiza, y la lista
+    completa de errores por línea. Si hay algún error no se guarda nada: entra
+    toda la planilla o ninguna. Con `simular` se comprueba sin guardar, para
+    mostrar la vista previa antes de confirmar."""
+    try:
+        filas, avisos = importar_tsv.leer_planilla(await archivo.read())
+    except importar_tsv.ErrorPlanilla as error:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La planilla está vacía.",
-        )
-
-    marcas = {m.slug: m.id for m in sesion.scalars(select(Marca))}
-    subcategorias = {s.slug: s.id for s in sesion.scalars(select(Subcategoria))}
-    creados = actualizados = 0
-    errores: list[str] = []
-
-    for numero, fila in enumerate(filas, start=2):
-        codigo = (fila.get("codigo") or "").strip()
-        if not codigo:
-            errores.append(f"Línea {numero}: falta el código.")
-            continue
-        if (fila.get("marca_slug") or "").strip() not in marcas:
-            errores.append(f"Línea {numero}: la marca '{fila.get('marca_slug')}' no existe.")
-            continue
-        if (fila.get("subcategoria_slug") or "").strip() not in subcategorias:
-            errores.append(
-                f"Línea {numero}: la subcategoría '{fila.get('subcategoria_slug')}' no existe."
-            )
-            continue
-
-        texto = lambda clave: (fila.get(clave) or "").strip() or None  # noqa: E731
-        beneficios = texto("beneficios")
-        datos = {
-            "nombre": (fila.get("nombre") or "").strip(),
-            "slug": (fila.get("slug") or "").strip(),
-            "marca_id": marcas[fila["marca_slug"].strip()],
-            "subcategoria_id": subcategorias[fila["subcategoria_slug"].strip()],
-            "precio": (fila.get("precio") or "0").strip() or "0",
-            "precio_antes": texto("precio_antes"),
-            "presentacion": texto("presentacion"),
-            "descripcion_corta": texto("descripcion_corta"),
-            "descripcion_larga": texto("descripcion_larga"),
-            "modo_uso": texto("modo_uso"),
-            "beneficios": beneficios.split("|") if beneficios else [],
-            "stock": int((fila.get("stock") or "0").strip() or 0),
-            "activo": (fila.get("activo") or "").strip().lower() == "true",
-            "destacado": (fila.get("destacado") or "").strip().lower() == "true",
-            "mas_vendido": (fila.get("mas_vendido") or "").strip().lower() == "true",
-        }
-
-        existente = crud.obtener_producto_admin(sesion, codigo)
-        try:
-            crud.guardar_producto(
-                sesion, {**datos, "codigo": codigo}, producto=existente
-            )
-        except crud.ErrorCatalogo as error:
-            errores.append(f"Línea {numero}: {error}")
-            continue
-        if existente is None:
-            creados += 1
-        else:
-            actualizados += 1
-
-    if errores:
-        sesion.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=" ".join(errores[:10]),
-        )
-
-    sesion.commit()
-    return {"creados": creados, "actualizados": actualizados}
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    resultado = importar_tsv.procesar(sesion, filas, aplicar=not simular)
+    return {**resultado, "avisos": avisos}
 
 
 @router.get("/{codigo}", response_model=ProductoAdminOut, summary="Un producto")

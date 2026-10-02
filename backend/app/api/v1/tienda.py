@@ -26,8 +26,8 @@ class TiendaOut(BaseModel):
     correo: str
     direccion: str
     horario: str
-    instagram: str
-    facebook: str
+    tiktok: str
+    linkedin: str
     metodos_pago: str
     plantilla_whatsapp: str
     avisos: list[str]

@@ -22,8 +22,11 @@ AJUSTES: dict[str, tuple[str, str]] = {
     "correo": ("hola@elchiconaturista.pe", "texto"),
     "direccion": ("Las Camelias, Mz. K Lt. 17 – Los Olivos, Lima", "texto"),
     "horario": ("Lunes a sábado · 9:00 a 19:00", "texto"),
-    "instagram": ("https://instagram.com/elchiconaturista", "texto"),
-    "facebook": ("https://facebook.com/elchiconaturista", "texto"),
+    "tiktok": ("https://www.tiktok.com/@el.chico.naturista", "texto"),
+    "linkedin": (
+        "https://www.linkedin.com/company/el-chico-naturista/posts/?feedView=all",
+        "texto",
+    ),
     "metodos_pago": (
         "Puedes pagar con Yape, Plin o transferencia bancaria. "
         "Te pasamos los datos por WhatsApp al confirmar.",

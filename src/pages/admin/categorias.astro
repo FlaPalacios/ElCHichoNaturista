@@ -8,9 +8,9 @@ const token = Astro.cookies.get(COOKIE)?.value;
 const yo = await traer('/yo', token);
 if (!yo) return Astro.redirect('/admin');
 
-const clasificacion = (await traer('/clasificacion', token)) ?? {
-  categorias: [],
-  marcas: [],
+const clasificacion = {
+  ...((await traer('/clasificacion', token)) ?? { categorias: [], marcas: [] }),
+  papelera: (await traer('/papelera', token)) ?? { categorias: [], subcategorias: [], marcas: [] },
 };
 ---
 
@@ -54,8 +54,8 @@ const clasificacion = (await traer('/clasificacion', token)) ?? {
                 class="borrar"
                 @click="borrarCategoria(c)"
                 :disabled="c.subcategorias.length > 0"
-                :title="c.subcategorias.length > 0 ? 'Primero borra o mueve sus subcategorías' : 'Borrar'"
-              >Borrar</button>
+                :title="c.subcategorias.length > 0 ? 'Primero manda a la papelera o mueve sus subcategorías' : 'Mandar a la papelera'"
+              >A la papelera</button>
             </div>
           </header>
 
@@ -77,8 +77,8 @@ const clasificacion = (await traer('/clasificacion', token)) ?? {
                     class="borrar"
                     @click="borrarSubcategoria(s)"
                     :disabled="s.productos > 0"
-                    :title="s.productos > 0 ? 'Primero mueve sus productos' : 'Borrar'"
-                  >Borrar</button>
+                    :title="s.productos > 0 ? 'Primero mueve sus productos' : 'Mandar a la papelera'"
+                  >A la papelera</button>
                 </span>
               </li>
             </template>
@@ -118,13 +118,46 @@ const clasificacion = (await traer('/clasificacion', token)) ?? {
                 class="borrar"
                 @click="borrarMarca(m)"
                 :disabled="m.productos > 0"
-                :title="m.productos > 0 ? 'Primero cámbiales la marca a sus productos' : 'Borrar'"
-              >Borrar</button>
+                :title="m.productos > 0 ? 'Primero cámbiales la marca a sus productos' : 'Mandar a la papelera'"
+              >A la papelera</button>
             </span>
           </li>
         </template>
         <li class="subs__vacio" x-show="marcas.length === 0">Todavía no hay marcas.</li>
       </ul>
+    </section>
+
+
+    <!-- ── Papelera ─────────────────────────────────────────── -->
+    <section class="papelera" x-show="enPapelera > 0" x-cloak>
+      <button type="button" class="papelera__cab" @click="verPapelera = !verPapelera" :aria-expanded="verPapelera">
+        <span>Papelera <span class="pista" x-text="'· ' + enPapelera + (enPapelera === 1 ? ' elemento' : ' elementos')"></span></span>
+        <span x-text="verPapelera ? 'Ocultar' : 'Ver'"></span>
+      </button>
+
+      <div x-show="verPapelera" x-cloak>
+        <p class="pista">Lo que mandas a la papelera sale de la tienda y de los formularios, pero se puede restaurar.</p>
+
+        <template x-for="[tipo, etiqueta, lista] in [['categorias', 'Categoría', papelera.categorias], ['subcategorias', 'Subcategoría', papelera.subcategorias], ['marcas', 'Marca', papelera.marcas]]" :key="tipo">
+          <ul class="marcas">
+            <template x-for="x in lista" :key="tipo + x.id">
+              <li>
+                <span>
+                  <strong x-text="x.nombre"></strong>
+                  <span class="pista">
+                    <span x-text="etiqueta"></span><span x-show="x.categoria" x-text="' de ' + x.categoria"></span>
+                    · <span x-text="new Date(x.eliminado_en).toLocaleDateString('es-PE')"></span>
+                  </span>
+                </span>
+                <span class="tarjeta__acciones">
+                  <button type="button" @click="restaurar(tipo, x)">Restaurar</button>
+                  <button type="button" class="borrar" @click="eliminarSiempre(tipo, x)">Eliminar para siempre</button>
+                </span>
+              </li>
+            </template>
+          </ul>
+        </template>
+      </div>
     </section>
 
     <!-- ── Formulario ───────────────────────────────────────── -->
@@ -198,6 +231,31 @@ const clasificacion = (await traer('/clasificacion', token)) ?? {
     grid-template-columns: 1.6fr 1fr;
     gap: 2rem;
     align-items: start;
+  }
+
+  .papelera {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--linea-fuerte);
+    padding-top: 1rem;
+  }
+
+  .papelera__cab {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0.2rem 0;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--tinta-suave);
+    cursor: pointer;
+  }
+
+  .papelera .marcas {
+    margin-bottom: 0.2rem;
   }
 
   .bloque__cab {

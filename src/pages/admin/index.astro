@@ -224,17 +224,17 @@ const porAtender = pedidos.filter((p) => ['nuevo', 'pago_confirmado'].includes(p
                     <div x-show="estado === 'enviado'" x-cloak>
                       <label class="campo">
                         <span class="campo__etq">Courier</span>
-                        <input type="text" x-model="courier" placeholder="Olva, Shalom…" @change="guardarEstado()" />
+                        <input type="text" x-model="courier" maxlength="100" placeholder="Olva, Shalom…" @change="guardarEstado()" />
                       </label>
                       <label class="campo">
                         <span class="campo__etq">Código de seguimiento</span>
-                        <input type="text" x-model="seguimiento" @change="guardarEstado()" />
+                        <input type="text" x-model="seguimiento" maxlength="100" @change="guardarEstado()" />
                       </label>
                     </div>
 
                     <label class="campo">
                       <span class="campo__etq">Nota interna</span>
-                      <textarea x-model="nota" rows="3" @change="guardarNota()" placeholder="Solo la ves tú"></textarea>
+                      <textarea x-model="nota" rows="3" maxlength="2000" @change="guardarNota()" placeholder="Solo la ves tú"></textarea>
                     </label>
 
                     <p class="guardado" x-show="mensaje" x-text="mensaje" x-cloak></p>

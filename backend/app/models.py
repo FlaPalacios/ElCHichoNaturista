@@ -56,6 +56,8 @@ class Marca(Base):
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     orden: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # Papelera: con fecha, la fila está "borrada" pero se puede restaurar.
+    eliminado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     productos: Mapped[list["Producto"]] = relationship(back_populates="marca")
 
@@ -73,6 +75,7 @@ class Categoria(Base):
     slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     orden: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    eliminado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     subcategorias: Mapped[list["Subcategoria"]] = relationship(
         back_populates="categoria", order_by="Subcategoria.orden"
@@ -95,6 +98,7 @@ class Subcategoria(Base):
     slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     orden: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    eliminado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     categoria: Mapped[Categoria] = relationship(back_populates="subcategorias", lazy="joined")
     productos: Mapped[list["Producto"]] = relationship(back_populates="subcategoria")

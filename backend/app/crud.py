@@ -58,7 +58,9 @@ def listar_marcas(sesion: Session) -> list[Marca]:
 
 
 def obtener_categoria_por_slug(sesion: Session, slug: str) -> Categoria | None:
-    return sesion.scalar(select(Categoria).where(Categoria.slug == slug))
+    return sesion.scalar(
+        select(Categoria).where(Categoria.slug == slug, Categoria.eliminado_en.is_(None))
+    )
 
 
 def _escapar_like(termino: str) -> str:

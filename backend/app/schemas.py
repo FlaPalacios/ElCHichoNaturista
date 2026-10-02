@@ -2,7 +2,9 @@
 
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models import EstadoPedido
 
@@ -87,15 +89,20 @@ class PedidoCrear(BaseModel):
     """Payload de `POST /pedidos`. `correo` no se valida como email estricto:
     es opcional y hoy tampoco se exige en el frontend."""
 
-    nombre_contacto: str = Field(min_length=3, max_length=150, examples=["Ana Torres"])
-    telefono_contacto: str = Field(min_length=9, max_length=20, examples=["987654321"])
-    correo: str | None = Field(default=None, max_length=150)
-    direccion: str = Field(min_length=5, max_length=300, examples=["Av. Siempre Viva 123"])
+    # Los topes son cortos a propósito: nadie necesita más para un pedido, y así
+    # no se llena la base de basura. Mantenerlos iguales a `LIMITES` en
+    # src/alpine.js.
+    nombre_contacto: str = Field(min_length=3, max_length=40, examples=["Ana Torres"])
+    telefono_contacto: str = Field(
+        min_length=9, max_length=15, pattern=r"^[0-9\s+]+$", examples=["987654321"]
+    )
+    correo: str | None = Field(default=None, max_length=80)
+    direccion: str = Field(min_length=5, max_length=100, examples=["Av. Siempre Viva 123"])
     # Código INEI del distrito de entrega: de ahí salen el departamento, la
     # provincia y el costo del envío.
     ubigeo: str = Field(min_length=6, max_length=6, examples=["150122"])
-    referencia: str | None = Field(default=None, max_length=300)
-    nota: str | None = Field(default=None, max_length=1000)
+    referencia: str | None = Field(default=None, max_length=100)
+    nota: str | None = Field(default=None, max_length=250)
     items: list[PedidoItemEntrada] = Field(min_length=1)
 
 
@@ -176,10 +183,12 @@ class ProductoEntrada(BaseModel):
     destacado: bool = False
     mas_vendido: bool = False
     presentacion: str | None = Field(default=None, max_length=120)
-    descripcion_corta: str | None = None
-    descripcion_larga: str | None = None
-    modo_uso: str | None = None
-    beneficios: list[str] = []
+    descripcion_corta: str | None = Field(default=None, max_length=160)
+    descripcion_larga: str | None = Field(default=None, max_length=1500)
+    modo_uso: str | None = Field(default=None, max_length=600)
+    beneficios: list[Annotated[str, StringConstraints(max_length=80)]] = Field(
+        default=[], max_length=8
+    )
 
     @model_validator(mode="after")
     def _oferta_coherente(self):

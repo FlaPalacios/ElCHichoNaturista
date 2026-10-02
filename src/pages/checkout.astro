@@ -86,20 +86,20 @@ try {
 
           <label class="campo">
             <span class="campo__etq">Nombre completo</span>
-            <input type="text" x-model="datos.nombre" autocomplete="name" placeholder="Nombre y apellido" />
+            <input type="text" x-model="datos.nombre" maxlength="40" autocomplete="name" placeholder="Nombre y apellido" />
             <span class="error" x-show="intento && errores.nombre" x-text="errores.nombre"></span>
           </label>
 
           <div class="par">
             <label class="campo">
               <span class="campo__etq">WhatsApp</span>
-              <input type="tel" x-model="datos.telefono" autocomplete="tel" placeholder="9XX XXX XXX" />
+              <input type="tel" x-model="datos.telefono" maxlength="15" inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXX" />
               <span class="error" x-show="intento && errores.telefono" x-text="errores.telefono"></span>
             </label>
 
             <label class="campo">
               <span class="campo__etq">Correo (opcional)</span>
-              <input type="email" x-model="datos.correo" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
+              <input type="email" x-model="datos.correo" maxlength="80" autocomplete="email" placeholder="tucorreo@ejemplo.com" />
               <span class="error" x-show="intento && errores.correo" x-text="errores.correo"></span>
             </label>
           </div>
@@ -110,7 +110,7 @@ try {
 
           <label class="campo">
             <span class="campo__etq">Dirección</span>
-            <input type="text" x-model="datos.direccion" autocomplete="street-address" placeholder="Calle, número y departamento" />
+            <input type="text" x-model="datos.direccion" maxlength="100" autocomplete="street-address" placeholder="Calle, número y departamento" />
             <span class="error" x-show="intento && errores.direccion" x-text="errores.direccion"></span>
           </label>
 
@@ -150,7 +150,7 @@ try {
 
             <label class="campo">
               <span class="campo__etq">Referencia (opcional)</span>
-              <input type="text" x-model="datos.referencia" placeholder="Portón verde, frente al parque" />
+              <input type="text" x-model="datos.referencia" maxlength="100" placeholder="Portón verde, frente al parque" />
             </label>
           </div>
 
@@ -164,7 +164,8 @@ try {
 
           <label class="campo">
             <span class="campo__etq">Nota para el pedido (opcional)</span>
-            <textarea x-model="datos.nota" rows="3" placeholder="Ej.: entregar después de las 5 p. m."></textarea>
+            <textarea x-model="datos.nota" rows="3" maxlength="250" placeholder="Ej.: entregar después de las 5 p. m."></textarea>
+            <span class="campo__contador" x-text="datos.nota.length + ' / 250'"></span>
           </label>
 
           <p class="apunte apunte--pago">
