@@ -733,6 +733,308 @@ export default (Alpine) => {
     },
   }));
 
+  // Buscador del encabezado: productos, categorías y secciones de la tienda.
+  // Sin escribir muestra atajos; escribiendo, mezcla lo que coincida. Enter sin
+  // elegir nada manda la búsqueda al catálogo.
+  Alpine.data('buscadorGlobal', ({ productos, categorias, paginas }) => {
+    const limpio = (t) =>
+      String(t ?? '')
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .toLowerCase()
+        .trim();
+    const preparar = (lista, campos) =>
+      lista.map((x) => ({ ...x, _h: limpio(campos.map((c) => x[c]).join(' ')) }));
+    const prods = preparar(productos, ['n', 'm', 'c']);
+    const cats = preparar(categorias, ['t', 'p']);
+    const pags = preparar(paginas, ['t', 'k']);
+    const coinciden = (lista, palabras) => lista.filter((x) => palabras.every((w) => x._h.includes(w)));
+
+    return {
+      q: '',
+      abierto: false,
+      activo: -1,
+
+      get items() {
+        const texto = this.q.trim();
+        const palabras = limpio(texto).split(/\s+/).filter(Boolean);
+        if (!palabras.length) {
+          return pags.slice(0, 5).map((p) => ({ grupo: 'Ir a', t: p.t, sub: '', h: p.h }));
+        }
+        return [
+          ...coinciden(prods, palabras)
+            .slice(0, 5)
+            .map((p) => ({ grupo: 'Productos', t: p.n, sub: p.c, h: '/producto/' + p.s })),
+          ...coinciden(cats, palabras)
+            .slice(0, 4)
+            .map((c) => ({ grupo: 'Categorías', t: c.t, sub: c.p ? 'en ' + c.p : '', h: c.h })),
+          ...coinciden(pags, palabras)
+            .slice(0, 3)
+            .map((p) => ({ grupo: 'Secciones', t: p.t, sub: '', h: p.h })),
+          {
+            grupo: 'Buscar',
+            t: `Buscar «${texto}» en el catálogo`,
+            sub: '',
+            h: '/catalogo?q=' + encodeURIComponent(texto),
+          },
+        ];
+      },
+
+      mover(paso) {
+        const n = this.items.length;
+        if (!n) return;
+        this.abierto = true;
+        if (this.activo < 0) this.activo = paso > 0 ? 0 : n - 1;
+        else this.activo = (this.activo + paso + n) % n;
+      },
+
+      entrar(evento) {
+        const elegido = this.items[this.activo];
+        if (!elegido) return; // sin elegir nada: se envía el formulario al catálogo
+        evento.preventDefault();
+        location.href = elegido.h;
+      },
+
+      cerrar() {
+        this.abierto = false;
+        this.activo = -1;
+      },
+    };
+  });
+
+  // Ventas e ingresos entre fechas. Los gráficos se dibujan a mano (un SVG para
+  // la serie y barras HTML para los rankings): son pocos y así no se suma
+  // ninguna librería al panel.
+  Alpine.data('ventasAdmin', () => {
+    const W = 760;
+    const H = 260;
+    const M = { i: 58, d: 8, s: 12, b: 28 }; // márgenes: izquierda, derecha, arriba, abajo
+    const ZONA = 'America/Lima';
+
+    const hoyLima = () => new Date().toLocaleDateString('en-CA', { timeZone: ZONA });
+    const sumarDias = (iso, dias) => {
+      const d = new Date(iso + 'T12:00:00Z');
+      d.setUTCDate(d.getUTCDate() + dias);
+      return d.toISOString().slice(0, 10);
+    };
+    const numero = (n, dec = 0) =>
+      Number(n).toLocaleString('es-PE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+    // Un máximo "redondo" para el eje: 1, 2, 5 o 10 por una potencia de diez.
+    const eje = (maximo) => {
+      const crudo = Math.max(maximo, 1) / 4;
+      const pot = 10 ** Math.floor(Math.log10(crudo));
+      const f = crudo / pot;
+      const paso = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pot;
+      return { paso, tope: Math.ceil(Math.max(maximo, 1) / paso) * paso };
+    };
+
+    return {
+      desde: '',
+      hasta: '',
+      agrupar: 'auto',
+      estado: 'pagados',
+      comparar: true,
+      preset: '30d',
+      datos: null,
+      cargando: false,
+      error: '',
+      tabla: false,
+      tip: null,
+      _pedido: 0,
+
+      PRESETS: [
+        ['7d', '7 días'],
+        ['30d', '30 días'],
+        ['90d', '90 días'],
+        ['mes', 'Este mes'],
+        ['mes_pasado', 'Mes pasado'],
+        ['anio', 'Este año'],
+      ],
+      ESTADOS: {
+        nuevo: 'Nuevo',
+        pago_confirmado: 'Pago confirmado',
+        preparando: 'Preparando',
+        enviado: 'Enviado',
+        entregado: 'Entregado',
+        cancelado: 'Cancelado',
+        no_concretado: 'No concretado',
+      },
+
+      init() {
+        this.usarPreset('30d');
+      },
+
+      usarPreset(p) {
+        const hoy = hoyLima();
+        const [a, m] = hoy.split('-').map(Number);
+        const primero = (anio, mes) => `${anio}-${String(mes).padStart(2, '0')}-01`;
+        this.preset = p;
+        if (p === '7d') [this.desde, this.hasta] = [sumarDias(hoy, -6), hoy];
+        if (p === '30d') [this.desde, this.hasta] = [sumarDias(hoy, -29), hoy];
+        if (p === '90d') [this.desde, this.hasta] = [sumarDias(hoy, -89), hoy];
+        if (p === 'mes') [this.desde, this.hasta] = [primero(a, m), hoy];
+        if (p === 'mes_pasado') {
+          const este = primero(a, m);
+          const ant = m === 1 ? primero(a - 1, 12) : primero(a, m - 1);
+          [this.desde, this.hasta] = [ant, sumarDias(este, -1)];
+        }
+        if (p === 'anio') [this.desde, this.hasta] = [primero(a, 1), hoy];
+        this.cargar();
+      },
+
+      fechasCambiaron() {
+        this.preset = 'custom';
+        this.cargar();
+      },
+
+      get urlExportar() {
+        const q = new URLSearchParams({ desde: this.desde, hasta: this.hasta, estado: this.estado });
+        return `/api/admin/ventas/exportar?${q}`;
+      },
+
+      async cargar() {
+        if (!this.desde || !this.hasta) return;
+        if (this.hasta < this.desde) {
+          this.error = 'La fecha final no puede ser anterior a la inicial.';
+          return;
+        }
+        const turno = ++this._pedido;
+        this.cargando = true;
+        this.error = '';
+        const q = new URLSearchParams({
+          desde: this.desde,
+          hasta: this.hasta,
+          agrupar: this.agrupar,
+          estado: this.estado,
+          comparar: this.comparar,
+        });
+        const r = await peticionAdmin(`/ventas?${q}`, 'GET', null, true);
+        if (turno !== this._pedido) return; // llegó una respuesta más nueva
+        this.cargando = false;
+        if (!r.ok) {
+          this.error = r.error;
+          return;
+        }
+        this.tip = null;
+        this.datos = r.datos;
+      },
+
+      // ── Formatos ──
+      soles: (n) => 'S/ ' + numero(n, 2),
+      entero: (n) => numero(n),
+      corto: (n) => (n >= 1000 ? numero(n / 1000, 1) + ' k' : numero(n)),
+
+      etiqueta(periodo, largo = false) {
+        const d = new Date(periodo + 'T12:00:00Z');
+        const unidad = this.datos?.rango.agrupar;
+        if (unidad === 'mes') {
+          return d.toLocaleDateString('es-PE', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+        }
+        const dia = d.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+        return unidad === 'semana' ? (largo ? 'Semana del ' : 'Sem. ') + dia : dia;
+      },
+
+      fechaLarga(iso) {
+        return new Date(iso + 'T12:00:00Z').toLocaleDateString('es-PE', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
+      },
+
+      // Variación frente al periodo anterior, con flecha y texto (nunca solo color).
+      delta(clave) {
+        const previo = this.datos?.previo;
+        if (!previo) return null;
+        const a = this.datos.cifras[clave];
+        const p = previo.cifras[clave];
+        if (!p) return a ? { texto: 'Sin datos antes', clase: '' } : null;
+        const pct = ((a - p) / p) * 100;
+        if (Math.abs(pct) < 0.5) return { texto: '= igual que antes', clase: '' };
+        return {
+          texto: `${pct > 0 ? '▲' : '▼'} ${numero(Math.abs(pct))}% vs. periodo anterior`,
+          clase: pct > 0 ? 'sube' : 'baja',
+        };
+      },
+
+      get sinVentas() {
+        return this.datos && this.datos.cifras.pedidos === 0;
+      },
+
+      // ── Gráfico de la serie ──
+      get grafico() {
+        const d = this.datos;
+        if (!d) return { svg: '', n: 0 };
+        const serie = d.serie;
+        const previa = d.previo?.serie ?? [];
+        const n = serie.length;
+        const { paso, tope } = eje(Math.max(...serie.map((s) => s.ventas), ...previa.map((s) => s.ventas)));
+        const alto = H - M.s - M.b;
+        const y = (v) => M.s + alto * (1 - v / tope);
+        const banda = (W - M.i - M.d) / n;
+        const ancho = Math.min(banda * 0.66, 34);
+        const x = (i) => M.i + banda * i + (banda - ancho) / 2;
+
+        let s = '';
+        for (let v = 0; v <= tope + 1e-9; v += paso) {
+          s += `<line x1="${M.i}" x2="${W - M.d}" y1="${y(v)}" y2="${y(v)}" stroke="var(--linea)" stroke-width="1"/>`;
+          s += `<text x="${M.i - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--tinta-suave)">${this.corto(v)}</text>`;
+        }
+        serie.forEach((p, i) => {
+          if (p.ventas <= 0) return;
+          const top = y(p.ventas);
+          s += `<rect x="${x(i)}" y="${top}" width="${ancho}" height="${Math.max(y(0) - top, 2)}" rx="2" fill="var(--salvia)"/>`;
+        });
+        if (previa.length) {
+          const pts = previa
+            .slice(0, n)
+            .map((p, i) => `${M.i + banda * (i + 0.5)},${y(p.ventas)}`)
+            .join(' ');
+          s += `<polyline points="${pts}" fill="none" stroke="var(--tinta-suave)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" opacity="0.85"/>`;
+        }
+        // Etiquetas del eje x: unas ocho, repartidas.
+        const cada = Math.max(1, Math.ceil(n / 8));
+        serie.forEach((p, i) => {
+          if (i % cada !== 0) return;
+          s += `<text x="${M.i + banda * (i + 0.5)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--tinta-suave)">${this.etiqueta(p.periodo)}</text>`;
+        });
+        return {
+          n,
+          banda,
+          svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por ${d.rango.agrupar}" preserveAspectRatio="xMidYMid meet">${s}</svg>`,
+        };
+      },
+
+      get zonaSensible() {
+        const p = (v, t) => `${(v / t) * 100}%`;
+        return `left:${p(M.i, W)};right:${p(M.d, W)};top:${p(M.s, H)};bottom:${p(M.b, H)}`;
+      },
+
+      get tooltip() {
+        if (this.tip === null || !this.datos) return null;
+        const p = this.datos.serie[this.tip];
+        const previo = this.datos.previo?.serie[this.tip];
+        const centro = (M.i + this.grafico.banda * (this.tip + 0.5)) / W;
+        return {
+          estilo: `left:${centro * 100}%;${centro > 0.62 ? 'transform:translateX(-102%)' : 'transform:translateX(2%)'}`,
+          titulo: this.etiqueta(p.periodo, true),
+          ventas: this.soles(p.ventas),
+          pedidos: p.pedidos,
+          previo: previo ? this.soles(previo.ventas) : null,
+          previoEt: previo ? this.etiqueta(previo.periodo, true) : '',
+        };
+      },
+
+      // Ancho de la barra de un ranking, en %, respecto al mayor de la lista.
+      ancho(valor, lista, campo = 'importe') {
+        const mayor = Math.max(...lista.map((f) => f[campo]), 1);
+        return Math.max((valor / mayor) * 100, valor > 0 ? 2 : 0);
+      },
+    };
+  });
+
   // Ajustes de la tienda.
   Alpine.data('configuracionAdmin', (iniciales) => ({
     valores: { ...iniciales },

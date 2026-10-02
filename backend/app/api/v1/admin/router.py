@@ -9,6 +9,7 @@ from app.api.v1.admin import (
     pedidos,
     productos,
     resumen,
+    ventas,
 )
 
 router = APIRouter(prefix="/admin")
@@ -17,4 +18,5 @@ router.include_router(pedidos.router)
 router.include_router(productos.router)
 router.include_router(clasificacion.router)
 router.include_router(resumen.router)
+router.include_router(ventas.router)
 router.include_router(configuracion.router)

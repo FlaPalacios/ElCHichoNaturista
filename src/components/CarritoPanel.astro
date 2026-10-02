@@ -163,9 +163,9 @@ const tienda = Astro.locals.tienda;
 
   .panel__aviso {
     padding: 0.7rem 1.5rem;
-    background: var(--jade);
-    color: var(--cafe-texto);
-    border-bottom: 1px solid var(--cafe-linea);
+    background: var(--papel);
+    color: var(--tinta-suave);
+    border-bottom: 1px solid var(--linea);
     font-size: 0.84rem;
   }
 
@@ -173,8 +173,11 @@ const tienda = Astro.locals.tienda;
     color: var(--cafe);
   }
 
+  /* El verde de la marca, solo donde cuenta: el aviso de envío gratis. */
   .panel__aviso--ok {
     color: var(--salvia-osc);
+    border-left: 3px solid var(--salvia);
+    padding-left: calc(1.5rem - 3px);
   }
 
   .panel__cuerpo {
@@ -227,21 +230,31 @@ const tienda = Astro.locals.tienda;
     margin: 0.2rem 0 0.6rem;
   }
 
+  /* Cantidad: botones negros sólidos, para que sean lo primero que se ve. */
   .paso {
     display: inline-flex;
     align-items: center;
-    border: 1px solid var(--linea-fuerte);
-    border-radius: var(--radio);
-    overflow: hidden;
+    gap: 0.35rem;
   }
 
   .paso button {
-    background: none;
+    display: grid;
+    place-items: center;
+    background: var(--cafe);
     border: none;
-    width: 30px;
-    height: 30px;
-    font-size: 1rem;
-    color: var(--salvia);
+    border-radius: var(--radio);
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 1.15rem;
+    line-height: 1;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .paso button:hover:not([disabled]) {
+    background: var(--cafe-hover);
   }
 
   .paso button[disabled] {
@@ -252,9 +265,8 @@ const tienda = Astro.locals.tienda;
   .paso span {
     min-width: 30px;
     text-align: center;
-    font-size: 0.9rem;
-    border-inline: 1px solid var(--linea-fuerte);
-    line-height: 30px;
+    font-size: 0.95rem;
+    font-weight: 700;
   }
 
   .linea__derecha {
@@ -287,10 +299,10 @@ const tienda = Astro.locals.tienda;
   }
 
   .panel__pie {
-    border-top: 1px solid var(--cafe-linea);
+    border-top: 1px solid var(--linea-fuerte);
     padding: 1.2rem 1.5rem 1.5rem;
-    background: var(--jade);
-    color: var(--cafe-texto);
+    background: #fff;
+    color: var(--tinta-suave);
   }
 
   .cuentas {
@@ -310,7 +322,7 @@ const tienda = Astro.locals.tienda;
   }
 
   .cuentas__total {
-    border-top: 1px solid var(--cafe-linea);
+    border-top: 1px solid var(--linea);
     margin-top: 0.5rem;
     padding-top: 0.6rem !important;
     font-family: var(--titular);
@@ -332,7 +344,7 @@ const tienda = Astro.locals.tienda;
 
   .panel__nota {
     font-size: 0.76rem;
-    color: var(--cafe-suave);
+    color: var(--tinta-suave);
     margin: 0.9rem 0 0;
     text-align: center;
   }

@@ -55,9 +55,14 @@ const cuantos = (campo, valor) => lista.filter((p) => p[campo] === valor).length
       hasta: ${precioTope},
       soloOferta: false,
       orden: 'destacados',
+      abiertas: [],
+      marcasAbierto: false,
+      puntero: false,
       tope: ${precioTope},
       items: ${JSON.stringify(meta)},
       init() {
+        // Con mouse los grupos se abren al pasar; en el celular, al tocar la flecha.
+        this.puntero = window.matchMedia('(hover: hover)').matches;
         const u = new URLSearchParams(location.search);
         if (u.get('q')) this.q = u.get('q');
         if (u.get('categoria')) this.cats = [u.get('categoria')];
@@ -85,6 +90,12 @@ const cuantos = (campo, valor) => lista.filter((p) => p[campo] === valor).length
         });
         return r;
       },
+      abrir(slug) { if (this.puntero && !this.abiertas.includes(slug)) this.abiertas.push(slug) },
+      alternar(slug) { this.abiertas = this.abiertas.includes(slug) ? this.abiertas.filter(s => s !== slug) : [...this.abiertas, slug] },
+      // Queda abierta si la abriste o si tiene algo marcado: no se esconde un filtro activo.
+      abierta(slug, subs) { return this.abiertas.includes(slug) || this.cats.includes(slug) || subs.some(s => this.subs.includes(s)) },
+      get marcasVisibles() { return this.marcasAbierto || this.marcas.length > 0 },
+      soltar() { if (this.puntero) { this.abiertas = []; this.marcasAbierto = false } },
       get ids() { return this.filtrados.map(i => i.id) },
       posicion(id) { const k = this.ids.indexOf(id); return k === -1 ? 999 : k },
       limpiar() { this.q = ''; this.cats = []; this.subs = []; this.marcas = []; this.hasta = this.tope; this.soloOferta = false; this.orden = 'destacados' },
@@ -112,39 +123,67 @@ const cuantos = (campo, valor) => lista.filter((p) => p[campo] === valor).length
             <input type="search" x-model="q" placeholder="Henna, maca, romero…" />
           </label>
 
-          <fieldset class="grupo">
+          <fieldset class="grupo" @mouseleave="soltar()">
             <legend class="campo__etq">Categoría</legend>
             {
-              categorias.map((c) => (
-                <>
-                  <label class="check">
-                    <input type="checkbox" value={c.slug} x-model="cats" />
-                    <span>{c.nombre}</span>
-                    <em>{cuantos('categoria', c.slug)}</em>
-                  </label>
-                  {c.subcategorias.map((s) => (
-                    <label class="check check--sub">
-                      <input type="checkbox" value={s.slug} x-model="subs" />
-                      <span>{s.nombre}</span>
-                      <em>{cuantos('subcategoria', s.slug)}</em>
-                    </label>
-                  ))}
-                </>
-              ))
+              categorias.map((c) => {
+                const subs = JSON.stringify(c.subcategorias.map((s) => s.slug));
+                return (
+                  <div class="cat" @mouseenter={`abrir('${c.slug}')`}>
+                    <div class="check check--cab">
+                      <label class="check__lab">
+                        <input type="checkbox" value={c.slug} x-model="cats" />
+                        <span>{c.nombre}</span>
+                      </label>
+                      <em>{cuantos('categoria', c.slug)}</em>
+                      <button
+                        type="button"
+                        class="check__flecha"
+                        aria-label={`Ver las subcategorías de ${c.nombre}`}
+                        :aria-expanded={`abierta('${c.slug}', ${subs})`}
+                        :class={`abierta('${c.slug}', ${subs}) && 'check__flecha--abierta'`}
+                        @click={`alternar('${c.slug}')`}
+                      >
+                        ▾
+                      </button>
+                    </div>
+                    <div class="cat__subs" x-show={`abierta('${c.slug}', ${subs})`} x-cloak x-transition.opacity.duration.150ms>
+                      {c.subcategorias.map((s) => (
+                        <label class="check check--sub">
+                          <input type="checkbox" value={s.slug} x-model="subs" />
+                          <span>{s.nombre}</span>
+                          <em>{cuantos('subcategoria', s.slug)}</em>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
             }
           </fieldset>
 
           {
             marcas.length > 1 && (
-              <fieldset class="grupo">
+              <fieldset class="grupo" @mouseenter="if (puntero) marcasAbierto = true" @mouseleave="soltar()">
                 <legend class="campo__etq">Marca</legend>
-                {marcas.map((m) => (
-                  <label class="check">
-                    <input type="checkbox" value={m.slug} x-model="marcas" />
-                    <span>{m.nombre}</span>
-                    <em>{cuantos('marca', m.slug)}</em>
-                  </label>
-                ))}
+                <button
+                  type="button"
+                  class="grupo__cab"
+                  :aria-expanded="marcasVisibles"
+                  @click="marcasAbierto = !marcasAbierto"
+                >
+                  <span x-text="marcas.length ? marcas.length + (marcas.length === 1 ? ' marca elegida' : ' marcas elegidas') : 'Todas las marcas'">Todas las marcas</span>
+                  <span class:list={['check__flecha']} :class="marcasVisibles && 'check__flecha--abierta'" aria-hidden="true">▾</span>
+                </button>
+                <div class="cat__subs cat__subs--marcas" x-show="marcasVisibles" x-cloak x-transition.opacity.duration.150ms>
+                  {marcas.map((m) => (
+                    <label class="check check--sub">
+                      <input type="checkbox" value={m.slug} x-model="marcas" />
+                      <span>{m.nombre}</span>
+                      <em>{cuantos('marca', m.slug)}</em>
+                    </label>
+                  ))}
+                </div>
               </fieldset>
             )
           }
@@ -300,11 +339,62 @@ const cuantos = (campo, valor) => lista.filter((p) => p[campo] === valor).length
     margin-bottom: 1rem;
   }
 
+  /* Fila de categoría: casilla + nombre, cantidad y flecha para desplegar. */
+  .check--cab {
+    cursor: default;
+    gap: 0.4rem;
+  }
+
+  .check__lab {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1;
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .check__flecha {
+    background: none;
+    border: none;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.75rem;
+    color: var(--tinta-suave);
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .check__flecha--abierta {
+    transform: rotate(180deg);
+  }
+
+  .grupo__cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px dotted var(--linea);
+    padding: 0.4rem 0;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--tinta);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .cat__subs {
+    padding-bottom: 0.3rem;
+  }
+
   /* Subcategoría: cuelga visualmente de su categoría. */
   .check--sub {
     padding-left: 1.1rem;
     font-size: 0.88rem;
     color: var(--tinta-suave);
+    font-weight: 400;
   }
 
   .rango {

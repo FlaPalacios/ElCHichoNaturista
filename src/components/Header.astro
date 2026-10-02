@@ -1,5 +1,6 @@
 ---
 import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
+import { waLink } from '../lib/tienda.js';
 // Los datos de la tienda los carga el middleware desde la API.
 const tienda = Astro.locals.tienda;
 
@@ -9,19 +10,35 @@ const { activo = '' } = Astro.props;
 // nunca debe tumbar la página entera.
 let categorias = [];
 let destacadoMenu = [];
+let todos = [];
 try {
-  [categorias, destacadoMenu] = await Promise.all([
-    obtenerCategorias(),
-    // Los más vendidos; si todavía no hay ninguno marcado, los destacados.
-    obtenerProductos().then((lista) => {
-      const vendidos = lista.filter((p) => p.masVendido);
-      return (vendidos.length ? vendidos : lista.filter((p) => p.destacado)).slice(0, 3);
-    }),
-  ]);
+  [categorias, todos] = await Promise.all([obtenerCategorias(), obtenerProductos()]);
+  // Los más vendidos; si todavía no hay ninguno marcado, los destacados.
+  const vendidos = todos.filter((p) => p.masVendido);
+  destacadoMenu = (vendidos.length ? vendidos : todos.filter((p) => p.destacado)).slice(0, 3);
 } catch {
   categorias = [];
   destacadoMenu = [];
+  todos = [];
 }
+
+// Lo que el buscador puede encontrar, en versión mínima para no pesar.
+const datosBusqueda = {
+  productos: todos.map((p) => ({ n: p.nombre, s: p.slug, m: p.marcaNombre, c: p.categoriaNombre })),
+  categorias: categorias.flatMap((c) => [
+    { t: c.nombre, h: `/catalogo?categoria=${c.slug}` },
+    ...c.subcategorias.map((s) => ({ t: s.nombre, h: `/catalogo?subcategoria=${s.slug}`, p: c.nombre })),
+  ]),
+  paginas: [
+    { t: 'Catálogo', h: '/catalogo', k: 'catalogo filtros precio marca' },
+    { t: 'Colección', h: '/coleccion', k: 'coleccion todo productos ver todo galeria' },
+    { t: 'Mis pedidos', h: '/cuenta', k: 'pedido pedidos seguimiento rastrear estado cuenta compra orden' },
+    { t: 'Carrito', h: '/carrito', k: 'carrito compras bolsa' },
+    { t: 'Escribirnos por WhatsApp', h: waLink(tienda, 'Hola, quiero hacer una consulta.'), k: 'whatsapp contacto ayuda consulta telefono escribir' },
+    { t: 'Finalizar pedido', h: '/checkout', k: 'finalizar pedido checkout pagar comprar' },
+    { t: 'Inicio', h: '/', k: 'inicio portada home' },
+  ],
+};
 ---
 
 <div class="cintillo">
@@ -39,7 +56,7 @@ try {
   </div>
 </div>
 
-<header class="cabecera" x-data="{ mega: false, buscar: false }" @keydown.escape.window="mega = false; buscar = false">
+<header class="cabecera" x-data="{ mega: false }" @keydown.escape.window="mega = false">
   <div class="env cabecera__env">
     <a href="/" class="marca" aria-label={`${tienda.nombre} · inicio`}>
       <img src="/logo-1.png" alt="" width="72" height="72" class="marca__sello" />
@@ -49,94 +66,68 @@ try {
       </span>
     </a>
 
-    <nav class="nav" aria-label="Principal">
-      <div
-        class="nav__item"
-        @mouseenter="if (window.matchMedia('(hover: hover)').matches) mega = true"
-        @mouseleave="mega = false"
-        @click.outside="mega = false"
-      >
-        <a
-          href="/catalogo"
-          class:list={['nav__enlace', activo === 'catalogo' && 'nav__enlace--activo']}
-          aria-haspopup="true"
-          :aria-expanded="mega"
-          @click="if (!window.matchMedia('(hover: hover)').matches) { $event.preventDefault(); mega = !mega }"
-        >
-          Catálogo
-          <span class="nav__flecha" aria-hidden="true">▾</span>
-        </a>
-
-        <div class="mega" x-show="mega" x-cloak x-transition.opacity.duration.150ms>
-          <div class="env mega__env">
-            <div class="mega__cols">
-              {
-                categorias.map((c, i) => (
-                  <div class="mega__col">
-                    <span class="indice">{String(i + 1).padStart(2, '0')}</span>
-                    <a href={`/catalogo?categoria=${c.slug}`} class="mega__titulo">
-                      {c.nombre}
-                    </a>
-                    <ul class="mega__subs">
-                      {c.subcategorias.map((s) => (
-                        <li>
-                          <a href={`/catalogo?subcategoria=${s.slug}`}>{s.nombre}</a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              }
-            </div>
-            <aside class="mega__aparte">
-              <p class="kicker">Recomendados</p>
-              <ul class="mega__lista">
-                {
-                  destacadoMenu.map((p) => (
-                    <li>
-                      <a href={`/producto/${p.slug}`}>
-                        <span>{p.nombre}</span>
-                        <span class="mega__precio">S/ {p.precio.toFixed(2)}</span>
-                      </a>
-                    </li>
-                  ))
-                }
-              </ul>
-              <a href="/catalogo" class="enlace-mas">Ver todo el catálogo</a>
-            </aside>
+    <form
+      class="busca"
+      role="search"
+      action="/catalogo"
+      method="get"
+      x-data={`buscadorGlobal(${JSON.stringify(datosBusqueda)})`}
+      @click.outside="cerrar()"
+      @keydown.escape="cerrar()"
+    >
+      <svg class="busca__lupa" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="M20 20l-3.6-3.6"></path>
+      </svg>
+      <input
+        type="search"
+        name="q"
+        x-model="q"
+        placeholder="Busca productos, categorías o secciones"
+        autocomplete="off"
+        aria-label="Buscar en la tienda"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="resultados-busqueda"
+        :aria-expanded="abierto"
+        @focus="abierto = true"
+        @input="abierto = true; activo = -1"
+        @keydown.arrow-down.prevent="mover(1)"
+        @keydown.arrow-up.prevent="mover(-1)"
+        @keydown.enter="entrar($event)"
+      />
+      <div class="busca__lista" id="resultados-busqueda" role="listbox" x-show="abierto" x-cloak x-transition.opacity.duration.120ms>
+        <template x-for="(it, i) in items" :key="it.grupo + it.h">
+          <div>
+            <p class="busca__grupo" x-show="i === 0 || items[i - 1].grupo !== it.grupo" x-text="it.grupo"></p>
+            <a
+              :href="it.h"
+              class="busca__item"
+              :class="activo === i && 'busca__item--activo'"
+              role="option"
+              :aria-selected="activo === i"
+              @mouseenter="activo = i"
+            >
+              <span x-text="it.t"></span>
+              <span class="busca__sub" x-show="it.sub" x-text="it.sub"></span>
+            </a>
           </div>
-        </div>
+        </template>
       </div>
-
-      {
-        categorias.map((c) => (
-          <a
-            href={`/catalogo?categoria=${c.slug}`}
-            class:list={['nav__enlace', activo === c.slug && 'nav__enlace--activo']}
-          >
-            {c.nombre}
-          </a>
-        ))
-      }
-    </nav>
+    </form>
 
     <div class="acciones">
-      <button class="accion" @click="buscar = !buscar" aria-label="Buscar productos">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
-          <circle cx="11" cy="11" r="7"></circle>
-          <path d="M20 20l-3.6-3.6"></path>
-        </svg>
-      </button>
-
-      <a href="/cuenta" class="accion" aria-label="Mi cuenta">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
-          <circle cx="12" cy="8" r="4"></circle>
-          <path d="M4.5 20c1.3-4 4.1-6 7.5-6s6.2 2 7.5 6"></path>
+      <a href="/cuenta" class:list={['accion', activo === 'cuenta' && 'accion--activa']} aria-label="Mis pedidos" title="Mis pedidos">
+        <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 8l-9-5-9 5v8l9 5 9-5V8Z"></path>
+          <path d="M3.3 7.8L12 12.8l8.7-5"></path>
+          <path d="M12 12.8V21"></path>
+          <path d="M7.5 5.3l8.9 5"></path>
         </svg>
       </a>
 
-      <button class="accion accion--carrito" @click="$store.carrito.abierto = true" aria-label="Abrir carrito">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7">
+      <button class="accion accion--carrito" @click="$store.carrito.abierto = true" aria-label="Abrir carrito" title="Carrito">
+        <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 7h16l-1.4 11.2A2 2 0 0 1 16.6 20H7.4a2 2 0 0 1-2-1.8L4 7Z"></path>
           <path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path>
         </svg>
@@ -145,13 +136,73 @@ try {
     </div>
   </div>
 
-  <div class="buscador" x-show="buscar" x-cloak x-transition.opacity>
-    <form class="env buscador__env" action="/catalogo" method="get">
-      <label for="q" class="solo-lector">Buscar productos</label>
-      <input id="q" name="q" type="search" placeholder="Henna castaño, maca, aceite de romero…" x-ref="q" x-init="$watch('buscar', v => v && setTimeout(() => $refs.q.focus(), 60))" />
-      <button class="btn" type="submit">Buscar</button>
-      <button type="button" class="buscador__cerrar" @click="buscar = false" aria-label="Cerrar búsqueda">✕</button>
-    </form>
+  <div class="cabecera__menu">
+  <nav class="env nav" aria-label="Principal">
+    <div
+      class="nav__item"
+      @mouseenter="if (window.matchMedia('(hover: hover)').matches) mega = true"
+      @mouseleave="mega = false"
+      @click.outside="mega = false"
+    >
+      <a
+        href="/catalogo"
+        class:list={['nav__enlace', activo === 'catalogo' && 'nav__enlace--activo']}
+        aria-haspopup="true"
+        :aria-expanded="mega"
+        @click="if (!window.matchMedia('(hover: hover)').matches) { $event.preventDefault(); mega = !mega }"
+      >
+        Catálogo
+        <span class="nav__flecha" aria-hidden="true">▾</span>
+      </a>
+
+      <div class="mega" x-show="mega" x-cloak x-transition.opacity.duration.150ms>
+        <div class="env mega__env">
+          <div class="mega__cols">
+            {
+              categorias.map((c, i) => (
+                <div class="mega__col">
+                  <span class="indice">{String(i + 1).padStart(2, '0')}</span>
+                  <a href={`/catalogo?categoria=${c.slug}`} class="mega__titulo">
+                    {c.nombre}
+                  </a>
+                  <ul class="mega__subs">
+                    {c.subcategorias.map((s) => (
+                      <li>
+                        <a href={`/catalogo?subcategoria=${s.slug}`}>{s.nombre}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            }
+          </div>
+          <aside class="mega__aparte">
+            <p class="kicker">Recomendados</p>
+            <ul class="mega__lista">
+              {
+                destacadoMenu.map((p) => (
+                  <li>
+                    <a href={`/producto/${p.slug}`}>
+                      <span>{p.nombre}</span>
+                      <span class="mega__precio">S/ {p.precio.toFixed(2)}</span>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+            <a href="/catalogo" class="enlace-mas">Ver todo el catálogo</a>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <a
+      href="/coleccion"
+      class:list={['nav__enlace', activo === 'coleccion' && 'nav__enlace--activo']}
+    >
+      Colección
+    </a>
+  </nav>
   </div>
 </header>
 
@@ -191,18 +242,26 @@ try {
     border-bottom: 1px solid var(--cafe-linea);
   }
 
+  /* Fila de arriba: logo a la izquierda, buscador al centro (se estira con la
+     pantalla) e iconos a la derecha. Las columnas de los lados son iguales,
+     así el buscador queda centrado de verdad. */
   .cabecera__env {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(auto, 1fr) minmax(260px, 680px) minmax(auto, 1fr);
     align-items: center;
     gap: 2rem;
-    min-height: 88px;
+    min-height: 84px;
+  }
+
+  .cabecera__menu {
+    border-top: 1px solid var(--linea);
   }
 
   .marca {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    flex-shrink: 0;
+    justify-self: start;
   }
 
   .marca__sello {
@@ -238,8 +297,9 @@ try {
   .nav {
     display: flex;
     align-items: center;
-    gap: 1.9rem;
-    margin-left: auto;
+    justify-content: center;
+    gap: 2.6rem;
+    min-height: 44px;
   }
 
   .nav__item {
@@ -367,15 +427,16 @@ try {
   .acciones {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    justify-content: flex-end;
+    gap: 0.5rem;
   }
 
   .accion {
     position: relative;
     display: grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
+    width: 52px;
+    height: 52px;
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radio);
@@ -383,15 +444,16 @@ try {
     transition: border-color 0.2s, color 0.2s;
   }
 
-  .accion:hover {
+  .accion:hover,
+  .accion--activa {
     border-color: var(--cafe-linea);
     color: var(--cafe);
   }
 
   .contador {
     position: absolute;
-    top: 2px;
-    right: 0;
+    top: 3px;
+    right: 1px;
     min-width: 19px;
     height: 19px;
     display: grid;
@@ -404,43 +466,127 @@ try {
     border-radius: 999px;
   }
 
-  .buscador {
-    border-top: 1px solid var(--linea);
+  /* Buscador: una línea para escribir, sin caja, a todo el ancho de su columna. */
+  .busca {
+    position: relative;
+    width: 100%;
+  }
+
+  .busca__lupa {
+    position: absolute;
+    left: 0.15rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--cafe-suave);
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+
+  .busca:focus-within .busca__lupa {
+    color: var(--cafe);
+  }
+
+  .busca input {
+    width: 100%;
+    font: inherit;
+    font-size: 1.06rem;
+    padding: 0.85rem 0.4rem 0.85rem 2.5rem;
+    border: none;
+    border-bottom: 2px solid color-mix(in srgb, var(--cafe) 22%, transparent);
+    border-radius: 0;
+    background: transparent;
+    color: var(--tinta);
+    appearance: none;
+    transition: border-color 0.2s;
+  }
+
+  .busca input::placeholder {
+    color: var(--cafe-suave);
+  }
+
+  .busca input:hover {
+    border-bottom-color: color-mix(in srgb, var(--cafe) 45%, transparent);
+  }
+
+  .busca input:focus {
+    outline: none;
+    border-bottom-color: var(--cafe);
+  }
+
+  .busca input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  .busca__lista {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 70;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio);
+    box-shadow: 0 18px 30px -22px color-mix(in srgb, var(--tinta) 55%, transparent);
+    padding-bottom: 0.3rem;
+  }
+
+  .busca__grupo {
+    margin: 0;
+    padding: 0.7rem 1rem 0.25rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+
+  .busca__item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.92rem;
+  }
+
+  .busca__item--activo {
     background: var(--papel);
   }
 
-  .buscador__env {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding-block: 1.1rem;
-  }
-
-  .buscador input {
-    flex: 1;
-    font: inherit;
-    font-size: 1.05rem;
-    padding: 0.7rem 0.9rem;
-    border: 1px solid var(--linea-fuerte);
-    background: #fff;
-    border-radius: var(--radio);
-  }
-
-  .buscador__cerrar {
-    background: none;
-    border: none;
-    font-size: 1.1rem;
+  .busca__sub {
+    font-size: 0.76rem;
     color: var(--tinta-suave);
-    padding: 0.5rem;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .cabecera__env {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'marca acciones'
+        'busca busca';
+      gap: 0.2rem 1rem;
+      padding-block: 0.5rem 0.2rem;
+      min-height: 0;
+    }
+    .marca {
+      grid-area: marca;
+    }
+    .acciones {
+      grid-area: acciones;
+    }
+    .busca {
+      grid-area: busca;
+    }
+    .nav {
+      gap: 2rem;
+      min-height: 40px;
+    }
   }
 
   @media (max-width: 1024px) {
-    .nav__enlace:not(:first-child) {
-      display: none;
-    }
-    .nav .nav__item .nav__enlace {
-      display: inline-block;
-    }
     .mega__env {
       grid-template-columns: 1fr;
       gap: 1.5rem;
@@ -458,12 +604,20 @@ try {
 
   @media (max-width: 640px) {
     .cabecera__env {
-      min-height: 72px;
-      gap: 1rem;
+      min-height: 0;
     }
     .marca__sello {
       width: 46px;
       height: 46px;
+    }
+    .marca__texto {
+      display: none;
+    }
+    /* En el celular la fila de menú se esconde para que el encabezado no
+       ocupe media pantalla; Catálogo y Colección salen de primeros en los
+       atajos del buscador. */
+    .cabecera__menu {
+      display: none;
     }
     .marca__texto strong {
       font-size: 1.02rem;
@@ -474,6 +628,13 @@ try {
     }
     .nav {
       gap: 1rem;
+    }
+    .acciones {
+      gap: 0.1rem;
+    }
+    .accion {
+      width: 46px;
+      height: 46px;
     }
     .mega__cols {
       grid-template-columns: 1fr;

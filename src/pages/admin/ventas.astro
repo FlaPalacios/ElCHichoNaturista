@@ -1,0 +1,620 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { COOKIE, traer } from '../../lib/admin.js';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(COOKIE)?.value;
+const yo = await traer('/yo', token);
+if (!yo) return Astro.redirect('/admin');
+---
+
+<Admin title="Ventas" seccion="ventas" sesion={true}>
+  <header class="cab">
+    <div>
+      <p class="kicker">Panel</p>
+      <h1 class="titulo">Ventas</h1>
+    </div>
+    <p class="cab__resumen">
+      Ingresos y pedidos entre las fechas que elijas. Las fechas se leen en hora de Lima.
+    </p>
+  </header>
+
+  <div x-data="ventasAdmin()" x-cloak>
+    <!-- ── Filtros ───────────────────────────────────────────── -->
+    <section class="filtros" aria-label="Filtros">
+      <div class="presets" role="group" aria-label="Periodos rápidos">
+        <template x-for="[clave, nombre] in PRESETS" :key="clave">
+          <button
+            type="button"
+            class="chip"
+            :class="preset === clave && 'chip--activo'"
+            :aria-pressed="preset === clave"
+            @click="usarPreset(clave)"
+            x-text="nombre"
+          ></button>
+        </template>
+      </div>
+
+      <div class="filtros__fila">
+        <label class="campo">
+          <span class="campo__etq">Desde</span>
+          <input type="date" x-model="desde" :max="hasta" @change="fechasCambiaron()" />
+        </label>
+        <label class="campo">
+          <span class="campo__etq">Hasta</span>
+          <input type="date" x-model="hasta" :min="desde" @change="fechasCambiaron()" />
+        </label>
+        <label class="campo">
+          <span class="campo__etq">Agrupar por</span>
+          <select x-model="agrupar" @change="cargar()">
+            <option value="auto">Automático</option>
+            <option value="dia">Día</option>
+            <option value="semana">Semana</option>
+            <option value="mes">Mes</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span class="campo__etq">Qué pedidos cuentan</span>
+          <select x-model="estado" @change="cargar()">
+            <option value="pagados">Con pago confirmado</option>
+            <option value="activos">También los nuevos sin pagar</option>
+          </select>
+        </label>
+        <label class="casilla casilla--filtro">
+          <input type="checkbox" x-model="comparar" @change="cargar()" />
+          Comparar con el periodo anterior
+        </label>
+        <a class="btn btn--linea" :href="urlExportar" download>Exportar pedidos</a>
+      </div>
+      <p class="mensaje--error" x-show="error" x-text="error" x-cloak></p>
+    </section>
+
+    <p class="cargando" x-show="cargando && !datos">Cargando…</p>
+
+    <template x-if="datos">
+      <div :class="cargando && 'refrescando'">
+        <!-- ── Cifras ─────────────────────────────────────────── -->
+        <div class="cifras">
+          <div class="cifra">
+            <span class="cifra__n" x-text="soles(datos.cifras.ventas)"></span>
+            <span class="cifra__e">Ventas</span>
+            <template x-if="delta('ventas')">
+              <span class="cifra__d" :class="delta('ventas').clase" x-text="delta('ventas').texto"></span>
+            </template>
+            <span class="cifra__d" x-text="'Incluye ' + soles(datos.cifras.envio) + ' de envío'"></span>
+          </div>
+          <div class="cifra">
+            <span class="cifra__n" x-text="entero(datos.cifras.pedidos)"></span>
+            <span class="cifra__e">Pedidos</span>
+            <template x-if="delta('pedidos')">
+              <span class="cifra__d" :class="delta('pedidos').clase" x-text="delta('pedidos').texto"></span>
+            </template>
+          </div>
+          <div class="cifra">
+            <span class="cifra__n" x-text="soles(datos.cifras.ticket)"></span>
+            <span class="cifra__e">Ticket promedio</span>
+            <template x-if="delta('ticket')">
+              <span class="cifra__d" :class="delta('ticket').clase" x-text="delta('ticket').texto"></span>
+            </template>
+          </div>
+          <div class="cifra">
+            <span class="cifra__n" x-text="entero(datos.cifras.unidades)"></span>
+            <span class="cifra__e">Unidades vendidas</span>
+            <template x-if="delta('unidades')">
+              <span class="cifra__d" :class="delta('unidades').clase" x-text="delta('unidades').texto"></span>
+            </template>
+          </div>
+        </div>
+
+        <p class="vacio" x-show="sinVentas">
+          No hay pedidos en estas fechas con el filtro elegido. Prueba con otro periodo o incluye los pedidos nuevos sin pagar.
+        </p>
+
+        <div x-show="!sinVentas">
+          <!-- ── Ventas en el tiempo ────────────────────────────── -->
+          <section class="panel">
+            <div class="panel__cab">
+              <h2 class="subtitulo">
+                Ventas por <span x-text="{ dia: 'día', semana: 'semana', mes: 'mes' }[datos.rango.agrupar]"></span>
+              </h2>
+              <div class="leyenda">
+                <span class="leyenda__item"><i class="leyenda__barra"></i> Este periodo</span>
+                <span class="leyenda__item" x-show="datos.previo">
+                  <i class="leyenda__linea"></i>
+                  <span x-text="datos.previo ? fechaLarga(datos.previo.desde) + ' – ' + fechaLarga(datos.previo.hasta) : ''"></span>
+                </span>
+                <button type="button" class="enlace" @click="tabla = !tabla" x-text="tabla ? 'Ver gráfico' : 'Ver como tabla'"></button>
+              </div>
+            </div>
+
+            <div class="grafico" x-show="!tabla" @mouseleave="tip = null">
+              <div x-html="grafico.svg"></div>
+              <div class="grafico__zona" :style="zonaSensible">
+                <template x-for="(p, i) in datos.serie" :key="p.periodo">
+                  <div class="grafico__col" :class="tip === i && 'grafico__col--on'" @mouseenter="tip = i" @focus="tip = i" tabindex="0" :aria-label="etiqueta(p.periodo, true) + ': ' + soles(p.ventas)"></div>
+                </template>
+              </div>
+              <template x-if="tooltip">
+                <div class="tooltip" :style="tooltip.estilo">
+                  <strong x-text="tooltip.titulo"></strong>
+                  <span x-text="tooltip.ventas"></span>
+                  <span class="pista" x-text="tooltip.pedidos + (tooltip.pedidos === 1 ? ' pedido' : ' pedidos')"></span>
+                  <template x-if="tooltip.previo">
+                    <span class="pista" x-text="'Antes (' + tooltip.previoEt + '): ' + tooltip.previo"></span>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <div class="tabla-caja" x-show="tabla" x-cloak>
+              <table class="tabla">
+                <thead>
+                  <tr><th>Periodo</th><th class="num">Pedidos</th><th class="num">Ventas</th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="p in datos.serie" :key="p.periodo">
+                    <tr>
+                      <td x-text="etiqueta(p.periodo, true)"></td>
+                      <td class="num" x-text="p.pedidos"></td>
+                      <td class="num" x-text="soles(p.ventas)"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="rejilla">
+            <!-- ── Productos ──────────────────────────────────── -->
+            <section class="panel">
+              <h2 class="subtitulo">Productos más vendidos</h2>
+              <p class="pista">Por importe vendido (sin envío).</p>
+              <ul class="ranking">
+                <template x-for="f in datos.top_productos" :key="f.codigo">
+                  <li :title="f.nombre + ' · ' + f.unidades + ' uds.'">
+                    <span class="ranking__nombre">
+                      <span x-text="f.nombre"></span>
+                      <span class="pista" x-text="f.codigo + ' · ' + f.unidades + (f.unidades === 1 ? ' unidad' : ' unidades')"></span>
+                    </span>
+                    <span class="ranking__valor" x-text="soles(f.importe)"></span>
+                    <span class="ranking__pista"><i :style="'width:' + ancho(f.importe, datos.top_productos) + '%'"></i></span>
+                  </li>
+                </template>
+              </ul>
+            </section>
+
+            <section class="panel">
+              <h2 class="subtitulo">Por categoría</h2>
+              <ul class="ranking">
+                <template x-for="f in datos.por_categoria" :key="f.nombre">
+                  <li>
+                    <span class="ranking__nombre"><span x-text="f.nombre"></span><span class="pista" x-text="f.unidades + ' uds.'"></span></span>
+                    <span class="ranking__valor" x-text="soles(f.importe)"></span>
+                    <span class="ranking__pista"><i :style="'width:' + ancho(f.importe, datos.por_categoria) + '%'"></i></span>
+                  </li>
+                </template>
+              </ul>
+              <h2 class="subtitulo subtitulo--sep">Por marca</h2>
+              <ul class="ranking">
+                <template x-for="f in datos.por_marca" :key="f.nombre">
+                  <li>
+                    <span class="ranking__nombre"><span x-text="f.nombre"></span><span class="pista" x-text="f.unidades + ' uds.'"></span></span>
+                    <span class="ranking__valor" x-text="soles(f.importe)"></span>
+                    <span class="ranking__pista"><i :style="'width:' + ancho(f.importe, datos.por_marca) + '%'"></i></span>
+                  </li>
+                </template>
+              </ul>
+            </section>
+
+            <!-- ── Dónde y en qué estado ──────────────────────── -->
+            <section class="panel">
+              <h2 class="subtitulo">Por departamento de entrega</h2>
+              <p class="pista">Ventas totales, con envío.</p>
+              <ul class="ranking">
+                <template x-for="f in datos.por_departamento" :key="f.nombre">
+                  <li>
+                    <span class="ranking__nombre"><span x-text="f.nombre"></span><span class="pista" x-text="f.pedidos + (f.pedidos === 1 ? ' pedido' : ' pedidos')"></span></span>
+                    <span class="ranking__valor" x-text="soles(f.importe)"></span>
+                    <span class="ranking__pista"><i :style="'width:' + ancho(f.importe, datos.por_departamento) + '%'"></i></span>
+                  </li>
+                </template>
+              </ul>
+            </section>
+
+            <section class="panel">
+              <h2 class="subtitulo">Estado de los pedidos</h2>
+              <p class="pista">Todos los pedidos del periodo, cuenten o no como venta.</p>
+              <ul class="ranking">
+                <template x-for="f in datos.estados" :key="f.estado">
+                  <li>
+                    <span class="ranking__nombre" x-text="ESTADOS[f.estado] ?? f.estado"></span>
+                    <span class="ranking__valor" x-text="f.pedidos"></span>
+                    <span class="ranking__pista"><i class="gris" :style="'width:' + ancho(f.pedidos, datos.estados, 'pedidos') + '%'"></i></span>
+                  </li>
+                </template>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</Admin>
+
+<style>
+  .cab {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.6rem;
+  }
+
+  .cab__resumen {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 44ch;
+  }
+
+  /* Filtros: una sola fila arriba de los gráficos. */
+  .filtros {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1rem 1.2rem 0.4rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .chip {
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--linea-fuerte);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--tinta);
+    cursor: pointer;
+  }
+
+  .chip:hover {
+    border-color: var(--salvia);
+  }
+
+  .chip--activo {
+    background: var(--salvia);
+    border-color: var(--salvia);
+    color: #fff;
+  }
+
+  .filtros__fila {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0 1rem;
+  }
+
+  .filtros__fila .campo {
+    margin-bottom: 0.8rem;
+    min-width: 150px;
+  }
+
+  .filtros__fila .campo input,
+  .filtros__fila .campo select {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .casilla--filtro {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.84rem;
+    color: var(--tinta-suave);
+    margin-bottom: 0.95rem;
+  }
+
+  .filtros__fila .btn {
+    margin: 0 0 0.8rem auto;
+  }
+
+  .mensaje--error {
+    color: var(--rojo);
+    font-size: 0.86rem;
+    margin: 0 0 0.8rem;
+  }
+
+  .cargando {
+    color: var(--tinta-suave);
+  }
+
+  .refrescando {
+    opacity: 0.55;
+    transition: opacity 0.15s;
+  }
+
+  /* Cifras */
+  .cifras {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.6rem;
+  }
+
+  .cifra {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1.1rem 1.2rem;
+  }
+
+  .cifra__n {
+    font-family: var(--titular);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--cafe);
+    line-height: 1.1;
+  }
+
+  .cifra__e {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--salvia);
+    margin-top: 0.3rem;
+  }
+
+  .cifra__d {
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    margin-top: 0.2rem;
+  }
+
+  .cifra__d.sube {
+    color: var(--salvia);
+    font-weight: 700;
+  }
+
+  .cifra__d.baja {
+    color: var(--rojo);
+    font-weight: 700;
+  }
+
+  /* Paneles */
+  .panel {
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 1.1rem 1.3rem 1.3rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .panel__cab {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.5rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .panel .subtitulo {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+
+  .subtitulo--sep {
+    margin-top: 1.6rem !important;
+    margin-bottom: 0.4rem !important;
+  }
+
+  .pista {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--tinta-suave);
+    font-weight: 400;
+  }
+
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.2rem;
+    align-items: start;
+  }
+
+  .rejilla .panel {
+    margin-bottom: 0;
+  }
+
+  .vacio {
+    color: var(--tinta-suave);
+    border: 1px dashed var(--linea-fuerte);
+    border-radius: var(--radio);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+  }
+
+  /* Leyenda del gráfico */
+  .leyenda {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+  }
+
+  .leyenda__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .leyenda__barra {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--salvia);
+  }
+
+  .leyenda__linea {
+    width: 18px;
+    border-top: 2px dashed var(--tinta-suave);
+  }
+
+  .enlace {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--salvia);
+    border-bottom: 1px solid currentColor;
+    cursor: pointer;
+  }
+
+  /* Gráfico: el SVG da la forma; encima, columnas HTML para el hover. */
+  .grafico {
+    position: relative;
+  }
+
+  .grafico :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .grafico__zona {
+    position: absolute;
+    display: flex;
+  }
+
+  .grafico__col {
+    flex: 1;
+    outline: none;
+  }
+
+  .grafico__col--on {
+    background: color-mix(in srgb, var(--salvia) 9%, transparent);
+  }
+
+  .tooltip {
+    position: absolute;
+    top: 6%;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 150px;
+    padding: 0.55rem 0.75rem;
+    background: var(--cafe);
+    color: #fff;
+    border-radius: var(--radio);
+    font-size: 0.82rem;
+    pointer-events: none;
+  }
+
+  .tooltip .pista {
+    color: color-mix(in srgb, #fff 70%, transparent);
+  }
+
+  /* Tabla alternativa */
+  .tabla-caja {
+    max-height: 22rem;
+    overflow: auto;
+  }
+
+  .tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .tabla th,
+  .tabla td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--linea);
+    text-align: left;
+  }
+
+  .tabla th {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    position: sticky;
+    top: 0;
+    background: #fff;
+  }
+
+  .tabla .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Rankings: etiqueta y valor arriba, barra fina debajo. */
+  .ranking {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+  }
+
+  .ranking li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.25rem 1rem;
+    padding: 0.45rem 0;
+    font-size: 0.9rem;
+  }
+
+  .ranking__nombre {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ranking__valor {
+    font-family: var(--titular);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ranking__pista {
+    grid-column: 1 / -1;
+    height: 6px;
+    background: color-mix(in srgb, var(--salvia) 9%, transparent);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .ranking__pista i {
+    display: block;
+    height: 100%;
+    background: var(--salvia);
+    border-radius: 3px;
+  }
+
+  .ranking__pista i.gris {
+    background: var(--linea-fuerte);
+  }
+
+  @media (max-width: 700px) {
+    .filtros__fila .btn {
+      margin-left: 0;
+    }
+    .rejilla {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

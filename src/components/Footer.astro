@@ -34,15 +34,16 @@ try {
       <ul>
         {categorias.map((c) => <li><a href={`/catalogo?categoria=${c.slug}`}>{c.nombre}</a></li>)}
         <li><a href="/catalogo">Ver todo</a></li>
+        <li><a href="/coleccion">Colección</a></li>
       </ul>
     </nav>
 
-    <nav class="pie__col" aria-label="Tu cuenta">
+    <nav class="pie__col" aria-label="Tu pedido">
       <p class="kicker">Tu pedido</p>
       <ul>
         <li><a href="/carrito">Carrito</a></li>
         <li><a href="/checkout">Finalizar pedido</a></li>
-        <li><a href="/cuenta">Mi cuenta</a></li>
+        <li><a href="/cuenta">Mis pedidos</a></li>
         <li><a href={waLink('Hola, tengo una consulta sobre un pedido.')} target="_blank" rel="noopener">Consultar por WhatsApp</a></li>
       </ul>
     </nav>
