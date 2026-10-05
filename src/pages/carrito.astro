@@ -184,10 +184,9 @@ try {
     gap: 1.5rem;
     border-bottom: 2px solid var(--salvia);
     padding-bottom: 0.7rem;
-    font-size: 0.68rem;
+    font-size: var(--t-sm);
     font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
     color: var(--tinta-suave);
   }
 
@@ -276,7 +275,7 @@ try {
     font-size: 0.92rem;
     border: none;
     border-inline: 1px solid var(--linea-fuerte);
-    background: #fff;
+    background: var(--superficie);
     -moz-appearance: textfield;
   }
 
@@ -308,9 +307,8 @@ try {
   .tabla__vaciar {
     background: none;
     border: none;
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    letter-spacing: 0.005em;
     color: var(--tinta-suave);
     border-bottom: 1px solid var(--linea-fuerte);
     padding-bottom: 2px;
@@ -325,9 +323,10 @@ try {
   .resumen {
     position: sticky;
     top: 120px;
-    background: var(--jade);
-    color: var(--cafe-texto);
-    border: 1px solid var(--cafe-linea);
+    background: var(--superficie);
+    color: var(--tinta);
+    border: 1px solid var(--linea);
+    border-radius: var(--radio-foto);
     padding: 1.5rem;
   }
 

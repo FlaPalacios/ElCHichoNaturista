@@ -63,30 +63,73 @@
   font-display: swap;
 }
 
+/* Zilla Slab (Typotheque para Mozilla, OFL) para titulares: remates rectos y
+   trazo parejo, como las letras estampadas del aro del sello. Solo 600 y 700,
+   subset latin. */
+@font-face {
+  font-family: 'Zilla Slab';
+  src: url('/fonts/zilla-slab-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Zilla Slab';
+  src: url('/fonts/zilla-slab-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Paleta ─────────────────────────────────────────────────────
+   Tema "lino y kraft": fondo casi blanco con un toque verde, para que las
+   fotos de producto (que vienen sobre blanco) se fundan con la página; el
+   kraft de la bolsa de papel aparece como material, en bandas; el verde de
+   marca va en botones, enlaces y la greca del sello; la pizarra de las
+   montañas del logo da el texto suave.
+
+   Para probar otra paleta se cambia `data-tema` en <html> (Base.astro). Cada
+   tema solo redefine estas variables: el resto del CSS no se toca. */
 :root {
-  /* Marca */
+  /* Marca: estos dos verdes son fijos (#2F5D50 y #7A9B87). Un tema puede
+     cambiar fondos y neutros, pero no la marca. */
   --salvia: #2f5d50;
   --salvia-osc: #21423a;
   --jade: #7a9b87;
   --jade-claro: #a8c0b0;
-  --fondo: #f7f7f7;
+  --fondo: #fbfcfa;
 
-  /* Derivados del sello: tinta pizarra, papel, henna */
-  /* Café / negro tierra mojada: acento de contraste, solo en botones y
-     detalles pequeños (no en fondos grandes de sección). */
-  --cafe: #211e1e;
-  --cafe-hover: #2e2828;
-  --tinta: #33393a;
-  --tinta-suave: #5f6866;
-  --papel: #efe9dc;
+  /* Tierra (negro de tierra mojada): titulares y botones negros. */
+  --cafe: #2b2622;
+  --cafe-hover: #433b35;
+  --tinta: #33302c;
+  /* Pizarra, el gris de las montañas del sello. */
+  --tinta-suave: #565c58;
+  /* Kraft: el papel de las bolsas de la foto de portada. */
+  --papel: #eadfcb;
+  /* Henna: solo para lo que es oferta. */
   --henna: #a8552f;
   /* Rojo de aviso: solo para el hover de "quitar" en el carrito. */
-  --rojo: #c0392b;
+  --rojo: #b3392b;
   /* Claro de marca: el texto y los fondos que van encima de un color. */
-  --claro: #f4f1e8;
+  --claro: #f7f8f5;
 
-  --linea: #d8d5cc;
-  --linea-fuerte: #b9b5a8;
+  --linea: #e2e5df;
+  --linea-fuerte: #c3c8c1;
+  /* Borde de campos de formulario: 3:1 sobre blanco, se ve dónde escribir. */
+  --borde-campo: #8d948c;
+
+  /* Semánticos: lo que pintan las franjas (cintillo, pie) y los campos. Un
+     tema nuevo cambia estos y no hace falta tocar los componentes. */
+  --superficie: #ffffff;
+  --campo: #ffffff;
+  --franja: var(--salvia);
+  --franja-osc: var(--salvia-osc);
+  --franja-texto: #e9efe9;
+  /* Sobre #2F5D50 hacen falta tonos más claros para llegar a 4.5:1. */
+  --franja-texto-suave: #c8d7cc;
+  --acento-franja: #c6e0cf;
 
   /* Café atenuado: texto y líneas sobre superficies claras (jade, papel,
      fondo). Salen del café, así que cambiando --cafe cambian los tres. */
@@ -94,19 +137,100 @@
   --cafe-suave: color-mix(in srgb, var(--cafe) 55%, transparent);
   --cafe-linea: color-mix(in srgb, var(--cafe) 15%, transparent);
 
-  /* Encima del verde salvia (oscuro) va texto claro. */
-  --sobre-salvia: #e7eee9;
-  --sobre-salvia-suave: #bccbc2;
-  --linea-salvia: color-mix(in srgb, var(--sobre-salvia) 30%, transparent);
+  /* Encima de las franjas verdes (oscuras) va texto claro. */
+  --sobre-salvia: var(--franja-texto);
+  --sobre-salvia-suave: var(--franja-texto-suave);
+  --linea-salvia: color-mix(in srgb, var(--franja-texto) 26%, transparent);
 
-  /* Tipografía: Hind titula, Amulya lee */
+  /* Tipografía: Zilla Slab titula (las letras estampadas del sello), Amulya
+     lee, Hind rotula (botones, menús, precios). Si la slab no carga, cae en
+     otra serif: nunca en una sans, para no perder la jerarquía. */
+  --display: 'Zilla Slab', 'Rockwell', 'Roboto Slab', Georgia, serif;
   --titular: 'Hind', 'Segoe UI', system-ui, sans-serif;
   --texto: 'Amulya', 'Segoe UI', system-ui, sans-serif;
+
+  /* Escala tipográfica: cada salto se nota, sin pasos intermedios ambiguos. */
+  --t-xs: 0.75rem;
+  --t-sm: 0.875rem;
+  --t-base: 1.0625rem;
+  --t-md: 1.1875rem;
+  --t-lg: clamp(1.3rem, 1.7vw, 1.5rem);
+  --t-xl: clamp(1.55rem, 2.6vw, 2.05rem);
+  --t-2xl: clamp(2rem, 3.9vw, 3rem);
+  --t-3xl: clamp(2.4rem, 5.2vw, 3.9rem);
+  --t-4xl: clamp(2.8rem, 6.8vw, 5rem);
+  --cuerpo: 17px;
+  --cuerpo-lh: 1.65;
+  --track-kicker: 0.16em;
+  --track-btn: 0.09em;
+
+  /* Espaciado: una sola escala (4 · 8 · 12 · 16 · 24 · 32 · 48 · 72 · 112 px) */
+  --e-1: 0.25rem;
+  --e-2: 0.5rem;
+  --e-3: 0.75rem;
+  --e-4: 1rem;
+  --e-5: 1.5rem;
+  --e-6: 2rem;
+  --e-7: 3rem;
+  --e-8: 4.5rem;
+  --e-9: 7rem;
 
   /* Ritmo */
   --ancho: 1240px;
   --gutter: clamp(1.25rem, 4vw, 3.5rem);
   /* Curva ligera, la misma en botones y campos */
+  --radio: 6px;
+  --radio-foto: 16px;
+}
+
+/* Tema "oscura de contraste": franjas en verde casi negro y dorado kraft
+   como acento. Para probarlo: data-tema="oscuro" en Base.astro. */
+:root[data-tema='oscuro'] {
+  --papel: #e6dac2;
+  --franja: #14302a;
+  --franja-osc: #0d211c;
+  --franja-texto: #f4efe3;
+  --franja-texto-suave: #c9c1ad;
+  --acento-franja: #c9a56a;
+}
+
+/* El panel de administración conserva su aspecto de siempre aunque comparta
+   esta hoja: se le devuelven los valores anteriores al rediseño. Los
+   derivados (color-mix, var()) se repiten porque se calculan donde se
+   declaran y si no heredarían los de la tienda. */
+.panel-body {
+  --salvia: #2f5d50;
+  --salvia-osc: #21423a;
+  --jade-claro: #a8c0b0;
+  --fondo: #f7f7f7;
+  --cafe: #211e1e;
+  --cafe-hover: #2e2828;
+  --tinta: #33393a;
+  --tinta-suave: #5f6866;
+  --papel: #efe9dc;
+  --rojo: #c0392b;
+  --claro: #f4f1e8;
+  --linea: #d8d5cc;
+  --linea-fuerte: #b9b5a8;
+  --superficie: #fff;
+  --campo: #fff;
+  --borde-campo: #b9b5a8;
+  --franja: var(--salvia);
+  --franja-osc: var(--salvia-osc);
+  --franja-texto: #e7eee9;
+  --franja-texto-suave: #bccbc2;
+  --acento-franja: var(--jade-claro);
+  --cafe-texto: color-mix(in srgb, var(--cafe) 70%, transparent);
+  --cafe-suave: color-mix(in srgb, var(--cafe) 55%, transparent);
+  --cafe-linea: color-mix(in srgb, var(--cafe) 15%, transparent);
+  --sobre-salvia: var(--franja-texto);
+  --sobre-salvia-suave: var(--franja-texto-suave);
+  --linea-salvia: color-mix(in srgb, var(--franja-texto) 30%, transparent);
+  --display: var(--titular);
+  --cuerpo: 16.5px;
+  --cuerpo-lh: 1.6;
+  --track-kicker: 0.22em;
+  --track-btn: 0.13em;
   --radio: 5px;
 }
 
@@ -126,9 +250,11 @@ body {
   background: var(--fondo);
   color: var(--tinta);
   font-family: var(--texto);
-  font-size: 16.5px;
-  line-height: 1.6;
+  font-size: var(--cuerpo);
+  line-height: var(--cuerpo-lh);
   font-variant-numeric: lining-nums tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
 
@@ -161,6 +287,24 @@ h4 {
   text-wrap: balance;
 }
 
+/* Los dos niveles de arriba en serif: es lo que le da voz a la página. */
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--jade) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--salvia);
+  outline-offset: 2px;
+}
+
 p {
   margin: 0 0 1em;
   text-wrap: pretty;
@@ -180,7 +324,7 @@ p {
 }
 
 .seccion {
-  padding-block: clamp(3.5rem, 7vw, 6rem);
+  padding-block: clamp(3.5rem, 6.5vw, 5.5rem);
 }
 
 .seccion--papel {
@@ -190,29 +334,29 @@ p {
 /* ── Piezas tipográficas ────────────────────────────────────── */
 
 .kicker {
-  font-family: var(--texto);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-family: var(--titular);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: var(--salvia);
   margin: 0;
 }
 
 .display {
-  font-size: clamp(2.6rem, 6.2vw, 4.6rem);
+  font-size: var(--t-4xl);
 }
 
 .titulo {
-  font-size: clamp(1.9rem, 3.6vw, 2.9rem);
+  font-size: var(--t-2xl);
 }
 
 .subtitulo {
-  font-size: clamp(1.15rem, 1.8vw, 1.4rem);
+  font-size: var(--t-lg);
 }
 
 .plomo {
-  font-size: 1.08rem;
+  font-size: var(--t-md);
+  line-height: 1.55;
   color: var(--tinta-suave);
   max-width: 46ch;
 }
@@ -220,33 +364,41 @@ p {
 .indice {
   font-family: var(--titular);
   font-size: 0.85rem;
-  color: var(--linea-fuerte);
+  font-weight: 600;
+  color: var(--salvia);
   letter-spacing: 0.08em;
+}
+
+.panel-body .indice {
+  font-weight: 400;
+  color: var(--linea-fuerte);
 }
 
 /* Encabezado de sección: título a la izquierda, enlace a la derecha,
    unidos por una regla que ocupa el espacio sobrante. */
 .cabecera-seccion {
   display: flex;
-  align-items: flex-end;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
+  gap: var(--e-5);
+  margin-bottom: var(--e-7);
+  padding-bottom: var(--e-4);
+  border-bottom: 1px solid var(--linea);
 }
 
 .enlace-mas {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--titular);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--salvia);
   white-space: nowrap;
   border-bottom: 1px solid currentColor;
-  padding-bottom: 2px;
-  transition: opacity 0.2s;
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
 }
 
 .enlace-mas:hover {
-  opacity: 0.6;
+  color: var(--cafe);
 }
 
 /* ── Botones ────────────────────────────────────────────────── */
@@ -256,16 +408,22 @@ p {
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
-  padding: 0.85rem 1.6rem;
+  min-height: 48px;
+  padding: 0.8rem 1.6rem;
   border: 1px solid var(--salvia);
   background: var(--salvia);
   color: var(--claro);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  font-family: var(--titular);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
   border-radius: var(--radio);
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.btn:active {
+  transform: translateY(1px);
 }
 
 .btn:hover {
@@ -295,15 +453,25 @@ p {
   border-color: var(--cafe-hover);
 }
 
+/* WhatsApp como acción secundaria: contorno en negro tierra. Antes era jade
+   con texto blanco, que no llegaba al contraste mínimo (2.9:1). Donde
+   WhatsApp ES la acción principal (confirmar pedido) se usa .btn a secas. */
 .btn--wa {
-  background: var(--jade);
-  border-color: var(--jade);
-  color: #fff;
+  background: transparent;
+  border-color: var(--cafe);
+  color: var(--cafe);
 }
 
 .btn--wa:hover {
-  background: var(--salvia);
-  border-color: var(--salvia);
+  background: var(--cafe);
+  border-color: var(--cafe);
+  color: var(--claro);
+}
+
+.panel-body .btn--wa {
+  background: var(--jade);
+  border-color: var(--jade);
+  color: #fff;
 }
 
 .btn--claro {
@@ -331,17 +499,17 @@ p {
 
 .campo {
   display: block;
-  margin-bottom: 1.1rem;
+  margin-bottom: var(--e-5);
 }
 
 .campo__etq {
   display: block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--titular);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: var(--tinta-suave);
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--e-2);
 }
 
 .campo input,
@@ -349,11 +517,18 @@ p {
 .campo textarea {
   width: 100%;
   font: inherit;
-  padding: 0.72rem 0.85rem;
-  background: #fff;
-  border: 1px solid var(--linea-fuerte);
+  padding: 0.75rem 0.9rem;
+  background: var(--campo);
+  border: 1px solid var(--borde-campo);
   border-radius: var(--radio);
   color: var(--tinta);
+  transition: border-color 0.2s;
+}
+
+.campo input:hover,
+.campo select:hover,
+.campo textarea:hover {
+  border-color: var(--tinta-suave);
 }
 
 /* Solo se estira hacia abajo y hasta un tope: el resize libre rompía el
@@ -376,7 +551,7 @@ p {
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
-  outline: 2px solid var(--jade);
+  outline: 2px solid var(--salvia);
   outline-offset: -1px;
   border-color: var(--salvia);
 }
@@ -387,10 +562,10 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--titular);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: 0.005em;
   padding: 0.3rem 0.6rem;
   border: 1px solid currentColor;
   border-radius: 3px;
@@ -401,9 +576,10 @@ p {
 
 .precio {
   font-family: var(--titular);
-  font-weight: 700;
-  font-size: 1.22rem;
+  font-weight: 600;
+  font-size: var(--t-md);
   letter-spacing: -0.01em;
+  color: var(--cafe);
 }
 
 .precio-antes {
@@ -426,6 +602,67 @@ p {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── Panel: las piezas compartidas, como estaban antes del rediseño ── */
+
+.panel-body h1,
+.panel-body h2 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+
+.panel-body .kicker {
+  font-family: var(--texto);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.panel-body .titulo {
+  font-size: clamp(1.9rem, 3.6vw, 2.9rem);
+}
+
+.panel-body .subtitulo {
+  font-size: clamp(1.15rem, 1.8vw, 1.4rem);
+}
+
+.panel-body .btn {
+  min-height: 0;
+  padding: 0.85rem 1.6rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: inherit;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.panel-body .campo {
+  margin-bottom: 1.1rem;
+}
+
+.panel-body .campo__etq {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.panel-body .campo input,
+.panel-body .campo select,
+.panel-body .campo textarea {
+  padding: 0.72rem 0.85rem;
+}
+
+.panel-body .campo input:focus,
+.panel-body .campo select:focus,
+.panel-body .campo textarea:focus {
+  outline-color: var(--jade);
 }
 
 @media (prefers-reduced-motion: reduce) {

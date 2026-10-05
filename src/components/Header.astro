@@ -47,12 +47,10 @@ const datosBusqueda = {
     x-data={`{ i: 0, avisos: ${JSON.stringify(tienda.avisos)} }`}
     x-init="setInterval(() => i = (i + 1) % avisos.length, 5000)"
   >
-    <span class="cintillo__nav" aria-hidden="true">◀</span>
     <template x-for="(aviso, k) in avisos" :key="k">
       <p class="cintillo__texto" x-show="i === k" x-transition.opacity.duration.500ms x-text="aviso"></p>
     </template>
     <noscript><p class="cintillo__texto">{tienda.avisos[0]}</p></noscript>
-    <span class="cintillo__nav" aria-hidden="true">▶</span>
   </div>
 </div>
 
@@ -161,7 +159,6 @@ const datosBusqueda = {
             {
               categorias.map((c, i) => (
                 <div class="mega__col">
-                  <span class="indice">{String(i + 1).padStart(2, '0')}</span>
                   <a href={`/catalogo?categoria=${c.slug}`} class="mega__titulo">
                     {c.nombre}
                   </a>
@@ -208,11 +205,12 @@ const datosBusqueda = {
 
 <style>
   .cintillo {
-    background: var(--salvia);
-    color: var(--sobre-salvia);
-    font-size: 0.74rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    background: var(--franja);
+    color: var(--franja-texto);
+    font-family: var(--titular);
+    font-size: 0.84rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
   }
 
   .cintillo__env {
@@ -220,7 +218,7 @@ const datosBusqueda = {
     align-items: center;
     justify-content: center;
     gap: 1.5rem;
-    min-height: 38px;
+    min-height: 36px;
     position: relative;
   }
 
@@ -239,7 +237,6 @@ const datosBusqueda = {
     top: 0;
     z-index: 60;
     background: var(--fondo);
-    border-bottom: 1px solid var(--cafe-linea);
   }
 
   /* Fila de arriba: logo a la izquierda, buscador al centro (se estira con la
@@ -270,28 +267,31 @@ const datosBusqueda = {
     object-fit: contain;
   }
 
+  /* Nombre: la serif del sello arriba, la palabra Naturista espaciada
+     debajo, como en el aro del logo. */
   .marca__texto {
     display: flex;
     flex-direction: column;
-    font-family: var(--titular);
     line-height: 1;
-    color: var(--salvia-osc);
+    color: var(--cafe);
   }
 
   .marca__texto strong {
-    font-size: 1.24rem;
-    font-weight: 700;
+    font-family: var(--display);
+    font-size: 1.36rem;
+    font-weight: 600;
     letter-spacing: -0.01em;
   }
 
   .marca__texto em {
     font-style: normal;
-    font-size: 0.72rem;
-    letter-spacing: 0.3em;
+    font-family: var(--titular);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.32em;
     text-transform: uppercase;
-    color: var(--cafe-texto);
-    font-family: var(--texto);
-    margin-top: 0.3rem;
+    color: var(--salvia);
+    margin-top: 0.35rem;
   }
 
   .nav {
@@ -307,12 +307,12 @@ const datosBusqueda = {
   }
 
   .nav__enlace {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    padding-block: 0.4rem;
-    color: var(--salvia-osc);
+    font-family: var(--titular);
+    font-size: 0.98rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding-block: 0.45rem;
+    color: var(--tinta);
     border-bottom: 2px solid transparent;
     white-space: nowrap;
     transition: border-color 0.2s, color 0.2s;
@@ -320,7 +320,7 @@ const datosBusqueda = {
 
   .nav__enlace:hover,
   .nav__enlace--activo {
-    border-color: var(--cafe);
+    border-color: var(--salvia);
     color: var(--cafe);
   }
 
@@ -364,7 +364,7 @@ const datosBusqueda = {
   }
 
   .mega__titulo {
-    font-family: var(--titular);
+    font-family: var(--display);
     font-size: 1.14rem;
     font-weight: 600;
     color: var(--salvia);
@@ -440,14 +440,14 @@ const datosBusqueda = {
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radio);
-    color: var(--salvia-osc);
-    transition: border-color 0.2s, color 0.2s;
+    color: var(--cafe);
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
   }
 
   .accion:hover,
   .accion--activa {
-    border-color: var(--cafe-linea);
-    color: var(--cafe);
+    background: var(--papel);
+    color: var(--salvia);
   }
 
   .contador {
@@ -525,7 +525,7 @@ const datosBusqueda = {
     z-index: 70;
     max-height: 70vh;
     overflow-y: auto;
-    background: #fff;
+    background: var(--superficie);
     border: 1px solid var(--linea-fuerte);
     border-radius: var(--radio);
     box-shadow: 0 18px 30px -22px color-mix(in srgb, var(--tinta) 55%, transparent);
@@ -533,12 +533,12 @@ const datosBusqueda = {
   }
 
   .busca__grupo {
+    font-family: var(--titular);
     margin: 0;
     padding: 0.7rem 1rem 0.25rem;
-    font-size: 0.66rem;
+    font-size: var(--t-sm);
     font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
     color: var(--tinta-suave);
   }
 

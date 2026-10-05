@@ -2,6 +2,8 @@
 import FotoProducto from './FotoProducto.astro';
 
 const { producto, indice = null, alto = false } = Astro.props;
+// Los datos de la tienda los carga el middleware desde la API.
+const { mostrarAgotado } = Astro.locals.tienda;
 const oferta = Boolean(producto.precioAntes);
 const dto = oferta ? Math.round((1 - producto.precio / producto.precioAntes) * 100) : 0;
 const paraCarrito = {
@@ -20,7 +22,7 @@ const paraCarrito = {
     <FotoProducto producto={producto} alto={alto} />
     {indice !== null && <span class="ficha__indice">{String(indice).padStart(2, '0')}</span>}
     {oferta && <span class="ficha__oferta">−{dto}%</span>}
-    {producto.stock <= 12 && <span class="ficha__poco">Quedan {producto.stock}</span>}
+    {mostrarAgotado && producto.stock <= 0 && <span class="ficha__poco">Agotado</span>}
   </a>
 
   <div class="ficha__cuerpo">
@@ -50,8 +52,6 @@ const paraCarrito = {
     display: flex;
     flex-direction: column;
     background: transparent;
-    border-top: 1px solid var(--linea-fuerte);
-    padding-top: 0.9rem;
   }
 
   .ficha__vista {
@@ -59,8 +59,9 @@ const paraCarrito = {
     display: block;
     aspect-ratio: 5 / 6;
     overflow: hidden;
-    border-radius: 14px;
-    background: var(--papel);
+    border-radius: var(--radio-foto);
+    background: var(--superficie);
+    border: 1px solid var(--linea);
   }
 
   .ficha__vista :global(svg) {
@@ -90,9 +91,10 @@ const paraCarrito = {
     border-radius: 3px;
     background: var(--henna);
     color: #fff;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font-family: var(--titular);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     padding: 0.22rem 0.45rem;
   }
 
@@ -103,33 +105,36 @@ const paraCarrito = {
     border-radius: 3px;
     background: color-mix(in srgb, var(--fondo) 90%, transparent);
     border: 1px solid var(--linea-fuerte);
-    font-size: 0.66rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.4rem;
-    color: var(--tinta-suave);
+    font-family: var(--titular);
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 0.2rem 0.5rem;
+    color: var(--tinta);
   }
 
   .ficha__cuerpo {
     display: flex;
     flex-direction: column;
     flex: 1;
-    padding-top: 0.9rem;
+    padding-top: var(--e-4);
   }
 
   .ficha__cat {
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--jade);
-    margin: 0 0 0.4rem;
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--tinta-suave);
+    margin: 0 0 var(--e-2);
   }
 
   .ficha__nombre {
-    font-size: 1.06rem;
-    line-height: 1.25;
-    margin: 0 0 0.3rem;
+    font-family: var(--display);
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 0 0 var(--e-1);
   }
 
   .ficha__nombre a {
@@ -142,9 +147,9 @@ const paraCarrito = {
   }
 
   .ficha__pres {
-    font-size: 0.82rem;
+    font-size: var(--t-sm);
     color: var(--tinta-suave);
-    margin: 0 0 1rem;
+    margin: 0 0 var(--e-4);
   }
 
   .ficha__pie {
@@ -152,9 +157,9 @@ const paraCarrito = {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    border-top: 1px dotted var(--linea-fuerte);
-    padding-top: 0.7rem;
+    gap: var(--e-3);
+    border-top: 1px solid var(--linea);
+    padding-top: var(--e-3);
   }
 
   .ficha__pie .precio {
@@ -166,11 +171,12 @@ const paraCarrito = {
     border: 1px solid var(--cafe);
     border-radius: var(--radio);
     color: var(--claro);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    padding: 0.5rem 0.8rem;
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    min-height: 38px;
+    padding: 0.5rem 0.9rem;
     white-space: nowrap;
     transition: background 0.2s, color 0.2s, border-color 0.2s;
   }

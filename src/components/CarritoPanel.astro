@@ -210,7 +210,7 @@ const tienda = Astro.locals.tienda;
     justify-content: space-between;
     gap: 1rem;
     padding: 1.1rem 0;
-    border-bottom: 1px dotted var(--linea-fuerte);
+    border-bottom: 1px solid var(--linea);
   }
 
   .linea__nombre {
@@ -301,7 +301,7 @@ const tienda = Astro.locals.tienda;
   .panel__pie {
     border-top: 1px solid var(--linea-fuerte);
     padding: 1.2rem 1.5rem 1.5rem;
-    background: #fff;
+    background: var(--superficie);
     color: var(--tinta-suave);
   }
 
@@ -335,9 +335,8 @@ const tienda = Astro.locals.tienda;
     display: block;
     text-align: center;
     margin-top: 0.8rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    letter-spacing: 0.005em;
     color: var(--salvia-osc);
     text-decoration: underline;
   }

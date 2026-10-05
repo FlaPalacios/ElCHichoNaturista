@@ -31,6 +31,7 @@ class TiendaOut(BaseModel):
     metodos_pago: str
     plantilla_whatsapp: str
     avisos: list[str]
+    mostrar_agotado: bool
     envio_gratis_desde: Decimal
 
 
@@ -38,7 +39,8 @@ class TiendaOut(BaseModel):
 def leer_tienda(sesion: Annotated[Session, Depends(obtener_sesion)]):
     valores = ajustes_tienda.leer_todo(sesion)
     return TiendaOut(
-        **{k: v for k, v in valores.items() if k not in ("avisos", "envio_gratis_desde", "stock_bajo")},
+        **{k: v for k, v in valores.items() if k not in ("avisos", "envio_gratis_desde", "stock_bajo", "mostrar_agotado")},
+        mostrar_agotado=ajustes_tienda.si_no(sesion, "mostrar_agotado"),
         avisos=[linea for linea in valores["avisos"].split("\n") if linea.strip()],
         envio_gratis_desde=ajustes_tienda.numero(sesion, "envio_gratis_desde"),
     )

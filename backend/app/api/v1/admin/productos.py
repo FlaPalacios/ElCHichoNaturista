@@ -15,6 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import crud, fotos
@@ -25,6 +26,7 @@ from app.models import Admin, ImagenProducto, Marca, Producto, Subcategoria
 from app.schemas import (
     CambioActivo,
     CambioStock,
+    ImagenExistente,
     OrdenImagenes,
     ProductoAdminOut,
     ProductoCrear,
@@ -308,10 +310,57 @@ async def subir_imagen(
     return crud.obtener_producto_admin(sesion, codigo)
 
 
+@router.post(
+    "/{codigo}/imagenes/existente",
+    response_model=ProductoAdminOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Usa una foto que ya está en Cloudinary",
+    responses={422: {"description": "La foto no existe o ya está en este producto"}},
+)
+def usar_imagen_existente(
+    codigo: str,
+    datos: ImagenExistente,
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    """No sube nada: crea otra fila que apunta a la misma foto. Sirve para
+    corregir un error de producto sin volver a subir el archivo."""
+    producto = _buscar(sesion, codigo)
+    try:
+        foto = fotos.obtener(datos.public_id)
+    except fotos.ErrorFoto as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+
+    ya_esta = any(
+        (i.public_id or fotos.public_id_desde_url(i.url)) == datos.public_id
+        for i in producto.imagenes
+    )
+    if ya_esta:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Esa foto ya está en este producto.",
+        )
+
+    siguiente = max((i.orden for i in producto.imagenes), default=0) + 1
+    sesion.add(
+        ImagenProducto(
+            id_producto=codigo,
+            url=foto["secure_url"],
+            public_id=datos.public_id,
+            orden=siguiente,
+            tipo=datos.tipo,
+        )
+    )
+    sesion.commit()
+    return crud.obtener_producto_admin(sesion, codigo)
+
+
 @router.delete(
     "/{codigo}/imagenes/{imagen_id}",
     response_model=ProductoAdminOut,
-    summary="Borra una foto, también de Cloudinary",
+    summary="Quita una foto; la borra de Cloudinary si nadie más la usa",
 )
 def borrar_imagen(
     codigo: str,
@@ -328,7 +377,18 @@ def borrar_imagen(
         )
 
     public_id = imagen.public_id or fotos.public_id_desde_url(imagen.url)
-    if public_id:
+    # Si otro producto usa la misma foto, solo se la quita a este: borrarla de
+    # Cloudinary dejaría rota la del otro.
+    la_comparten = sesion.scalar(
+        select(func.count(ImagenProducto.id)).where(
+            ImagenProducto.id != imagen.id,
+            or_(
+                ImagenProducto.url == imagen.url,
+                (ImagenProducto.public_id == public_id) if public_id else False,
+            ),
+        )
+    )
+    if public_id and not la_comparten:
         try:
             fotos.borrar(public_id)
         except fotos.ErrorFoto as error:

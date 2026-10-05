@@ -30,6 +30,7 @@ export async function cargarTienda() {
       metodosPago: d.metodos_pago,
       plantillaWhatsapp: d.plantilla_whatsapp,
       avisos: d.avisos,
+      mostrarAgotado: Boolean(d.mostrar_agotado),
       envioGratisDesde: Number(d.envio_gratis_desde),
     };
   } catch {

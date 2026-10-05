@@ -61,6 +61,16 @@ const GRUPOS = [
     nota: 'Reglas que usan la tienda y el panel.',
     campos: [
       {
+        clave: 'mostrar_agotado',
+        etiqueta: 'Productos sin stock',
+        ayuda:
+          'Con "Seguir vendiendo" el cliente nunca ve "Agotado" y puede pedir sin límite; el stock puede quedar en negativo y ese número es lo que falta pedir al proveedor.',
+        opciones: [
+          ['no', 'Seguir vendiendo, sin mostrar "Agotado"'],
+          ['si', 'Mostrar "Agotado" y no vender sin stock'],
+        ],
+      },
+      {
         clave: 'envio_gratis_desde',
         etiqueta: 'Envío gratis desde (S/)',
         ayuda: 'Se aplica en todo el Perú.',
@@ -101,7 +111,13 @@ const listaTarifas = tarifas ?? [];
             {g.campos.map((c) => (
               <label class="campo">
                 <span class="campo__etq">{c.etiqueta}</span>
-                {c.largo ? (
+                {c.opciones ? (
+                  <select x-model={`valores.${c.clave}`}>
+                    {c.opciones.map(([valor, texto]) => (
+                      <option value={valor}>{texto}</option>
+                    ))}
+                  </select>
+                ) : c.largo ? (
                   <textarea x-model={`valores.${c.clave}`} rows={c.lineas ?? 2}></textarea>
                 ) : (
                   <input

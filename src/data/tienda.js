@@ -12,6 +12,8 @@ export const tienda = {
   tiktok: 'https://www.tiktok.com/@el.chico.naturista',
   linkedin: 'https://www.linkedin.com/company/el-chico-naturista/posts/?feedView=all',
   envioGratisDesde: 120,
+  // Falso: no se muestra "Agotado" y se sigue vendiendo sin stock.
+  mostrarAgotado: false,
   avisos: [
     'Envíos a todo el Perú · Delivery el mismo día en Lima',
     'Pedidos coordinados por WhatsApp, sin pasarela de pago',

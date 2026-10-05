@@ -41,7 +41,14 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
 
       <div class="hallado" x-show="pedido" x-cloak>
         <p class="hallado__numero" x-text="pedido?.numero"></p>
-        <p class="hallado__estado" x-text="$store.pedido.etiquetaEstado(pedido?.estado)"></p>
+        <p class="estado-pedido">
+          <span class="estado-pedido__etq">Estado:</span>
+          <span
+            class="estado-pedido__valor"
+            :class="['cancelado', 'no_concretado'].includes(pedido?.estado) && 'estado-pedido__valor--cerrado'"
+            x-text="$store.pedido.etiquetaEstado(pedido?.estado)"
+          ></span>
+        </p>
         <ul class="hallado__items">
           <template x-for="i in pedido?.items || []" :key="i.producto_id">
             <li>
@@ -61,18 +68,25 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
       </div>
     </section>
 
-    <aside class="lateral" x-cloak>
+    <aside class="lateral" x-data x-cloak>
       <section class="ultimo" x-show="$store.pedido.ultimo">
         <p class="kicker">Tu último pedido</p>
         <p class="ultimo__numero" x-text="$store.pedido.ultimo?.numero"></p>
         <p class="ultimo__fecha">
           <span x-text="$store.pedido.ultimo ? new Date($store.pedido.ultimo.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : ''"></span>
-          · <span class="ultimo__estado" x-text="$store.pedido.etiquetaEstado($store.pedido.ultimo?.estado)"></span>
           <span
             class="ultimo__pendiente"
             x-show="$store.pedido.ultimo?.sincronizado === false"
             title="Todavía no lo confirmamos con nuestro sistema"
           >· guardado en este dispositivo</span>
+        </p>
+        <p class="estado-pedido estado-pedido--chico">
+          <span class="estado-pedido__etq">Estado:</span>
+          <span
+            class="estado-pedido__valor"
+            :class="['cancelado', 'no_concretado'].includes($store.pedido.ultimo?.estado) && 'estado-pedido__valor--cerrado'"
+            x-text="$store.pedido.etiquetaEstado($store.pedido.ultimo?.estado)"
+          ></span>
         </p>
 
         <ul class="ultimo__items">
@@ -181,13 +195,63 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
     margin: 0;
   }
 
-  .hallado__estado {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--salvia);
-    margin: 0.2rem 0 1rem;
+  /* Estado del pedido: es lo que el cliente viene a buscar, así que va con
+     su etiqueta y en una insignia grande. Cancelado y sin confirmar van en
+     neutro para no parecer un pedido en curso. */
+  .estado-pedido {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--e-3);
+    margin: var(--e-3) 0 var(--e-5);
+  }
+
+  .estado-pedido__etq {
+    font-family: var(--titular);
+    font-size: var(--t-md);
+    font-weight: 600;
+    color: var(--tinta);
+  }
+
+  .estado-pedido__valor {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--e-2);
+    padding: 0.4rem 1rem 0.35rem;
+    border-radius: 999px;
+    background: var(--salvia);
+    color: var(--claro);
+    font-family: var(--display);
+    font-size: var(--t-lg);
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .estado-pedido__valor::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.8;
+  }
+
+  .estado-pedido__valor--cerrado {
+    background: var(--papel);
+    color: var(--cafe);
+  }
+
+  .estado-pedido--chico {
+    margin: 0 0 var(--e-4);
+  }
+
+  .estado-pedido--chico .estado-pedido__etq {
+    font-size: var(--t-base);
+  }
+
+  .estado-pedido--chico .estado-pedido__valor {
+    font-size: var(--t-md);
+    padding: 0.3rem 0.85rem 0.25rem;
   }
 
   .hallado__items {
@@ -202,7 +266,7 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;
-    border-bottom: 1px dotted var(--linea-fuerte);
+    border-bottom: 1px solid var(--linea);
   }
 
   .hallado__total {
@@ -216,7 +280,7 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
   .acceso__aviso {
     font-size: 0.8rem;
     color: var(--tinta-suave);
-    border-left: 3px solid var(--jade);
+    border-left: 3px solid var(--salvia);
     padding-left: 0.9rem;
     margin: 1.2rem 0 0;
   }
@@ -228,9 +292,10 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
   }
 
   .ultimo {
-    background: var(--jade);
-    color: var(--cafe-texto);
-    border: 1px solid var(--cafe-linea);
+    background: var(--superficie);
+    color: var(--tinta);
+    border: 1px solid var(--linea);
+    border-radius: var(--radio-foto);
     padding: 1.4rem 1.5rem;
   }
 
@@ -252,14 +317,6 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
     margin-bottom: 1rem;
   }
 
-  .ultimo__estado {
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: var(--cafe);
-  }
-
   .ultimo__pendiente {
     font-size: 0.7rem;
     color: var(--cafe-suave);
@@ -277,7 +334,7 @@ No hace falta crear una cuenta. Con el número de tu pedido puedes ver en qué v
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;
-    border-bottom: 1px dotted var(--cafe-linea);
+    border-bottom: 1px solid var(--linea);
   }
 
   .ultimo__total {

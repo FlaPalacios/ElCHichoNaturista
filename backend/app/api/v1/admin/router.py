@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.admin import (
     auth,
+    biblioteca,
     clasificacion,
     configuracion,
     pedidos,
@@ -18,5 +19,6 @@ router.include_router(pedidos.router)
 router.include_router(productos.router)
 router.include_router(clasificacion.router)
 router.include_router(resumen.router)
+router.include_router(biblioteca.router)
 router.include_router(ventas.router)
 router.include_router(configuracion.router)

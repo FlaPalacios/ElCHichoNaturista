@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import crud
+from app import tienda as ajustes_tienda
 from app.database import obtener_sesion
 from app.models import Admin, EstadoPedido
 from app.schemas import PedidoAdminOut
@@ -95,7 +96,12 @@ def cambiar_estado(
         pedido.codigo_seguimiento = cambio.codigo_seguimiento
 
     try:
-        crud.cambiar_estado(sesion, pedido, cambio.estado)
+        crud.cambiar_estado(
+            sesion,
+            pedido,
+            cambio.estado,
+            vender_sin_stock=not ajustes_tienda.si_no(sesion, "mostrar_agotado"),
+        )
     except crud.StockInsuficiente as error:
         sesion.rollback()
         raise HTTPException(
