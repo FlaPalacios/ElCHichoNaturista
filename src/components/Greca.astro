@@ -1,0 +1,26 @@
+---
+// La greca escalonada del aro del sello, como cinta. Es el único adorno de la
+// tienda: va solo en tres lugares (bajo el encabezado, al cierre del banner y
+// sobre el pie). Se dibuja como máscara SVG, así toma el color del tema.
+const { tono = 'salvia' } = Astro.props;
+---
+
+<div class:list={['greca', `greca--${tono}`]} aria-hidden="true"></div>
+
+<style>
+  .greca {
+    --dibujo: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cg fill='none' stroke='%23000' stroke-width='1.6'%3E%3Cpath d='M0 .8h28M0 13.2h28'/%3E%3Cpath d='M0 10.2h4.2V7.1h4.1V4h11.4v3.1h4.1v3.1H28'/%3E%3Cpath d='M12.6 7.1h2.8v3.1h-2.8z'/%3E%3C/g%3E%3C/svg%3E");
+    height: 14px;
+    background-color: var(--salvia);
+    -webkit-mask: var(--dibujo) repeat-x left center / 28px 14px;
+    mask: var(--dibujo) repeat-x left center / 28px 14px;
+  }
+
+  .greca--jade {
+    background-color: var(--jade);
+  }
+
+  .greca--franja {
+    background-color: var(--acento-franja);
+  }
+</style>

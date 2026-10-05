@@ -4,6 +4,8 @@ import FotoProducto from '../components/FotoProducto.astro';
 import ApiCaida from '../components/ApiCaida.astro';
 import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
 
+const { mostrarAgotado } = Astro.locals.tienda;
+
 // Una vista rápida de todo lo que hay: foto y nombre, sin precios ni filtros.
 // Va agrupada por categoría solo para que se recorra con la vista.
 let lista = [];
@@ -58,7 +60,7 @@ const secciones = categorias
                 <a href={`/producto/${p.slug}`} class="tile" title={p.nombre}>
                   <span class="tile__foto">
                     <FotoProducto producto={p} sizes="(max-width: 700px) 48vw, (max-width: 1100px) 31vw, 290px" />
-                    {p.stock <= 0 && <span class="tile__agotado">Agotado</span>}
+                    {mostrarAgotado && p.stock <= 0 && <span class="tile__agotado">Agotado</span>}
                   </span>
                   <span class="tile__nombre">{p.nombre}</span>
                 </a>
@@ -104,7 +106,7 @@ const secciones = categorias
   }
 
   .coleccion {
-    padding-block: 3rem 5rem;
+    padding-block: var(--e-6) var(--e-8);
   }
 
   .seccion + .seccion {
@@ -167,17 +169,17 @@ const secciones = categorias
     border-radius: 3px;
     background: var(--cafe);
     color: #fff;
-    font-size: 0.62rem;
+    font-size: var(--t-sm);
     font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
   }
 
   .tile__nombre {
     display: block;
     margin-top: 0.85rem;
-    font-family: var(--titular);
-    font-size: 1.12rem;
+    font-family: var(--display);
+    font-size: 1.18rem;
+    color: var(--cafe);
     font-weight: 600;
     line-height: 1.25;
     border-bottom: 1px solid transparent;

@@ -33,6 +33,7 @@ def crear_pedido(payload: PedidoCrear, sesion: Annotated[Session, Depends(obtene
             nota=payload.nota,
             items=[(i.producto_id, i.cantidad) for i in payload.items],
             envio_gratis_desde=ajustes_tienda.numero(sesion, "envio_gratis_desde"),
+            vender_sin_stock=not ajustes_tienda.si_no(sesion, "mostrar_agotado"),
         )
     except (
         crud.ProductoNoDisponible,

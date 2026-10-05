@@ -143,10 +143,11 @@ const consulta = producto
 
       <p class="producto__stock">
         {
-          producto.stock > 12 ? (
+          // La cantidad exacta no se muestra al cliente: solo si hay o no.
+          !mostrarAgotado || producto.stock > 0 ? (
             <><span class="punto punto--ok"></span> Disponible · sale hoy mismo en Lima</>
           ) : (
-            <><span class="punto punto--poco"></span> Últimas {producto.stock} unidades</>
+            <><span class="punto punto--poco"></span> Agotado por ahora</>
           )
         }
       </p>
@@ -155,9 +156,9 @@ const consulta = producto
         <div class="paso paso--grande">
           <button @click="cant = Math.max(1, cant - 1)" aria-label="Menos uno">−</button>
           <span x-text="cant">1</span>
-          <button @click={`cant = Math.min(${producto.stock}, cant + 1)`} aria-label="Uno más">+</button>
+          <button @click={`cant = Math.min(${mostrarAgotado ? producto.stock : 99}, cant + 1)`} aria-label="Uno más">+</button>
         </div>
-        <button class="btn btn--cafe compra__agregar" @click="$store.carrito.agregar(p, cant)" type="button">
+        <button class="btn compra__agregar" @click="$store.carrito.agregar(p, cant)" type="button">
           Agregar al carrito
         </button>
       </div>
@@ -230,7 +231,8 @@ const consulta = producto
 <style>
   .miga {
     border-bottom: 1px solid var(--linea);
-    font-size: 0.78rem;
+    font-family: var(--titular);
+    font-size: var(--t-sm);
     color: var(--tinta-suave);
   }
 
@@ -254,8 +256,8 @@ const consulta = producto
   .producto {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: clamp(2rem, 5vw, 4.5rem);
-    padding-block: 3rem 4rem;
+    gap: clamp(var(--e-6), 5vw, var(--e-8));
+    padding-block: var(--e-7) var(--e-8);
     align-items: start;
   }
 
@@ -267,8 +269,8 @@ const consulta = producto
   .producto__lamina {
     position: relative;
     aspect-ratio: 4 / 5;
-    border: 1px solid var(--linea-fuerte);
-    border-radius: 16px;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio-foto);
     overflow: hidden;
     background: var(--papel);
   }
@@ -286,9 +288,10 @@ const consulta = producto
     border-radius: 3px;
     background: var(--henna);
     color: #fff;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font-family: var(--titular);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     padding: 0.3rem 0.6rem;
   }
 
@@ -326,12 +329,12 @@ const consulta = producto
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--jade);
-    margin: 0 0 1rem;
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--tinta-suave);
+    margin: 0 0 var(--e-4);
   }
 
   .producto__cat a:hover {
@@ -339,28 +342,33 @@ const consulta = producto
   }
 
   .producto__nombre {
-    font-size: clamp(2rem, 3.6vw, 2.9rem);
-    margin-bottom: 0.8rem;
+    font-size: var(--t-2xl);
+    line-height: 1.05;
+    margin-bottom: var(--e-4);
   }
 
   .producto__corta {
-    font-size: 1.12rem;
+    font-size: var(--t-md);
+    line-height: 1.55;
     color: var(--tinta-suave);
-    max-width: 48ch;
-    margin-bottom: 1.6rem;
+    max-width: 46ch;
+    margin-bottom: var(--e-6);
   }
 
   .producto__precio {
     display: flex;
     align-items: baseline;
-    gap: 1rem;
-    border-top: 1px solid var(--linea-fuerte);
-    border-bottom: 1px solid var(--linea-fuerte);
-    padding-block: 1rem;
+    gap: var(--e-4);
+    border-top: 1px solid var(--linea);
+    border-bottom: 1px solid var(--linea);
+    padding-block: var(--e-5);
   }
 
+  /* El precio es el segundo punto focal después del nombre: misma serif. */
   .precio--grande {
-    font-size: 2rem;
+    font-family: var(--display);
+    font-size: clamp(2rem, 3vw, 2.4rem);
+    font-weight: 600;
     margin: 0;
   }
 
@@ -376,7 +384,7 @@ const consulta = producto
     gap: 0.5rem;
     font-size: 0.86rem;
     color: var(--tinta-suave);
-    margin: 0.9rem 0 1.6rem;
+    margin: var(--e-4) 0 var(--e-5);
   }
 
   .punto {
@@ -387,7 +395,7 @@ const consulta = producto
   }
 
   .punto--ok {
-    background: var(--jade);
+    background: var(--salvia);
   }
 
   .punto--poco {
@@ -400,31 +408,43 @@ const consulta = producto
     margin-bottom: 0.8rem;
   }
 
+  /* Cantidad: botones negros sólidos, igual que en el carrito lateral. */
   .paso--grande {
     display: inline-flex;
     align-items: center;
-    border: 1px solid var(--salvia);
-    border-radius: var(--radio);
-    overflow: hidden;
+    gap: var(--e-2);
   }
 
   .paso--grande button {
-    background: none;
+    display: grid;
+    place-items: center;
+    background: var(--cafe);
     border: none;
+    border-radius: var(--radio);
     width: 44px;
-    height: 100%;
-    font-size: 1.1rem;
-    color: var(--salvia);
+    height: 48px;
+    padding: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: #fff;
+    transition: background 0.2s;
+  }
+
+  .paso--grande button:hover:not([disabled]) {
+    background: var(--cafe-hover);
+  }
+
+  .paso--grande button[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
   }
 
   .paso--grande span {
-    min-width: 40px;
+    min-width: 34px;
     text-align: center;
     font-family: var(--titular);
-    font-size: 1.05rem;
-    align-self: stretch;
-    line-height: 46px;
-    border-inline: 1px solid var(--salvia);
+    font-size: 1.1rem;
+    font-weight: 600;
   }
 
   .compra__agregar {
@@ -433,15 +453,15 @@ const consulta = producto
 
   .promesas {
     list-style: none;
-    margin: 1.6rem 0 2.4rem;
+    margin: var(--e-5) 0 var(--e-7);
     padding: 0;
-    font-size: 0.88rem;
+    font-size: 0.92rem;
     color: var(--tinta-suave);
   }
 
   .promesas li {
     padding: 0.42rem 0 0.42rem 1.3rem;
-    border-bottom: 1px dotted var(--linea);
+    border-bottom: 1px solid var(--linea);
     position: relative;
   }
 
@@ -449,24 +469,23 @@ const consulta = producto
     content: '·';
     position: absolute;
     left: 0.3rem;
-    color: var(--jade);
+    color: var(--salvia);
     font-weight: 700;
   }
 
   .bloque {
-    margin-bottom: 1.8rem;
+    margin-bottom: var(--e-6);
   }
 
   .bloque__t {
-    font-size: 0.72rem;
-    font-family: var(--texto);
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    font-family: var(--titular);
+    font-weight: 600;
+    letter-spacing: 0.005em;
     color: var(--salvia);
-    margin-bottom: 0.7rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid var(--linea-fuerte);
+    margin-bottom: var(--e-3);
+    padding-bottom: var(--e-2);
+    border-bottom: 1px solid var(--linea);
   }
 
   .bloque p {
@@ -476,8 +495,9 @@ const consulta = producto
 
   .bloque--uso {
     background: var(--papel);
-    padding: 1.2rem 1.3rem;
-    border-left: 3px solid var(--jade);
+    padding: var(--e-5);
+    border-radius: 0 var(--radio) var(--radio) 0;
+    border-left: 3px solid var(--salvia);
   }
 
   .bloque--uso .bloque__t {
@@ -500,21 +520,21 @@ const consulta = producto
     content: '✓';
     position: absolute;
     left: 0;
-    color: var(--jade);
+    color: var(--salvia);
     font-size: 0.9rem;
   }
 
   .detalle {
-    border-top: 1px solid var(--linea-fuerte);
-    padding-top: 0.9rem;
+    border-top: 1px solid var(--linea);
+    padding-top: var(--e-4);
   }
 
   .detalle summary {
     cursor: pointer;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.005em;
     color: var(--tinta-suave);
   }
 
@@ -527,8 +547,8 @@ const consulta = producto
     justify-content: space-between;
     gap: 1rem;
     padding: 0.42rem 0;
-    border-bottom: 1px dotted var(--linea);
-    font-size: 0.88rem;
+    border-bottom: 1px solid var(--linea);
+    font-size: 0.9rem;
   }
 
   .ficha-datos dt {
@@ -543,7 +563,7 @@ const consulta = producto
   .relacionados {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 2rem;
+    gap: var(--e-6);
   }
 
   @media (max-width: 900px) {

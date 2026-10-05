@@ -231,8 +231,12 @@ def crear_pedido(
     nota: str | None,
     items: Sequence[tuple[int, int]],  # (producto_id, cantidad)
     envio_gratis_desde: Decimal,
+    vender_sin_stock: bool = False,
 ) -> Pedido:
     """Valida stock y arma el pedido con precios y envío reales de la base.
+
+    Con `vender_sin_stock` no se rechaza por falta de stock: la tienda repone
+    con el proveedor y sigue vendiendo.
 
     No hace commit: eso lo decide quien llama, igual que en seed.py.
     """
@@ -250,7 +254,7 @@ def crear_pedido(
         producto = productos.get(producto_id)
         if producto is None or not producto.activo:
             raise ProductoNoDisponible(producto_id)
-        if producto.stock < cantidad:
+        if not vender_sin_stock and producto.stock < cantidad:
             raise StockInsuficiente(producto_id, producto.nombre, producto.stock, cantidad)
         subtotal += producto.precio * cantidad
 
@@ -355,13 +359,22 @@ def _mover_stock(sesion: Session, pedido: Pedido, signo: int) -> None:
             producto.stock += signo * item.cantidad
 
 
-def cambiar_estado(sesion: Session, pedido: Pedido, nuevo: EstadoPedido) -> Pedido:
+def cambiar_estado(
+    sesion: Session,
+    pedido: Pedido,
+    nuevo: EstadoPedido,
+    vender_sin_stock: bool = False,
+) -> Pedido:
     """Mueve el pedido de estado y ajusta el stock en consecuencia.
 
     El stock se descuenta al entrar a `pago_confirmado` y vuelve solo si el
     pedido se cancela o no se concreta. Comparar "estaba tomado" con "debe
     estar tomado" hace que la operación sea segura aunque se repita o se salte
     estados.
+
+    Con `vender_sin_stock` el stock puede quedar en negativo al confirmar el
+    pago: ese número es lo que falta pedirle al proveedor, y al cancelar la
+    reposición vuelve exacta.
     """
     if pedido.estado == nuevo:
         return pedido
@@ -370,7 +383,7 @@ def cambiar_estado(sesion: Session, pedido: Pedido, nuevo: EstadoPedido) -> Pedi
     debe_estar_tomado = nuevo in ESTADOS_CON_STOCK_TOMADO
 
     if debe_estar_tomado and not estaba_tomado:
-        faltantes = [
+        faltantes = [] if vender_sin_stock else [
             item
             for item in pedido.items
             if (producto := sesion.get(Producto, item.producto_id)) is not None

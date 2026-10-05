@@ -8,6 +8,7 @@ panel sigue funcionando igual.
 import secrets
 
 import cloudinary
+import cloudinary.api
 import cloudinary.uploader
 
 from app.config import ajustes
@@ -91,3 +92,40 @@ def public_id_desde_url(url: str) -> str | None:
         return None
     ruta = "/".join(partes)
     return ruta.rsplit(".", 1)[0] if "." in ruta.rsplit("/", 1)[-1] else ruta
+
+
+MAX_BIBLIOTECA = 1000
+
+
+def listar() -> list[dict]:
+    """Todas las fotos de la cuenta de Cloudinary, las más nuevas primero.
+
+    Se pide sin carpeta porque las primeras fotos (las de la planilla) se
+    subieron sin ella. Tope de 1000 para que la pantalla no se ponga lenta.
+    """
+    _configurar()
+    fotos_cloudinary: list[dict] = []
+    cursor = None
+    try:
+        while len(fotos_cloudinary) < MAX_BIBLIOTECA:
+            pagina = cloudinary.api.resources(
+                resource_type="image", type="upload", max_results=500, next_cursor=cursor
+            )
+            fotos_cloudinary.extend(pagina.get("resources", []))
+            cursor = pagina.get("next_cursor")
+            if not cursor:
+                break
+    except Exception as error:
+        raise ErrorFoto(f"No se pudo leer la biblioteca de Cloudinary: {error}") from error
+
+    fotos_cloudinary.sort(key=lambda f: f.get("created_at", ""), reverse=True)
+    return fotos_cloudinary
+
+
+def obtener(public_id: str) -> dict:
+    """Los datos de una foto que ya está en Cloudinary (y confirma que existe)."""
+    _configurar()
+    try:
+        return cloudinary.api.resource(public_id, resource_type="image")
+    except Exception as error:
+        raise ErrorFoto(f"Esa foto no existe en Cloudinary: {error}") from error

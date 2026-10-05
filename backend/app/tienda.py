@@ -42,6 +42,10 @@ AJUSTES: dict[str, tuple[str, str]] = {
         "Envío gratis en todo el Perú desde S/ 120",
         "lineas",
     ),
+    # "no": no se muestra "Agotado" y se sigue vendiendo aunque el stock llegue
+    # a cero (se repone con el proveedor). "si": se muestra y no se vende sin
+    # stock, como antes.
+    "mostrar_agotado": ("no", "si_no"),
     "envio_gratis_desde": (str(ajustes.envio_gratis_desde), "numero"),
     "stock_bajo": (str(ajustes.stock_bajo), "entero"),
 }
@@ -78,6 +82,11 @@ def numero(sesion: Session, clave: str) -> Decimal:
         return Decimal(crudo)
     except (InvalidOperation, TypeError):
         return Decimal(AJUSTES[clave][0])
+
+
+def si_no(sesion: Session, clave: str) -> bool:
+    """Un ajuste de sí/no. Cualquier cosa que no sea «si» cuenta como no."""
+    return leer_todo(sesion).get(clave, AJUSTES[clave][0]).strip().lower() == "si"
 
 
 def entero(sesion: Session, clave: str) -> int:

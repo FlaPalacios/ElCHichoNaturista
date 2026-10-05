@@ -178,7 +178,7 @@ class ProductoEntrada(BaseModel):
     subcategoria_id: int
     precio: Decimal = Field(ge=0, examples=["28.50"])
     precio_antes: Decimal | None = Field(default=None, ge=0)
-    stock: int = Field(ge=0, le=99999)
+    stock: int = Field(ge=-99999, le=99999)
     activo: bool = True
     destacado: bool = False
     mas_vendido: bool = False
@@ -203,7 +203,7 @@ class ProductoCrear(ProductoEntrada):
 
 
 class CambioStock(BaseModel):
-    stock: int = Field(ge=0, le=99999)
+    stock: int = Field(ge=-99999, le=99999)
 
 
 class CambioActivo(BaseModel):
@@ -211,6 +211,13 @@ class CambioActivo(BaseModel):
 
 
 class ImagenEntrada(BaseModel):
+    tipo: str | None = Field(default=None, max_length=50)
+
+
+class ImagenExistente(BaseModel):
+    """Una foto que ya está en Cloudinary y se quiere usar en otro producto."""
+
+    public_id: str = Field(min_length=1, max_length=255)
     tipo: str | None = Field(default=None, max_length=50)
 
 

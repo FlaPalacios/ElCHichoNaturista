@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import ProductoCard from '../components/ProductoCard.astro';
 import ApiCaida from '../components/ApiCaida.astro';
+import Greca from '../components/Greca.astro';
 import { obtenerCategorias, obtenerProductos } from '../lib/api.js';
 import { waLink as enlaceWa } from '../lib/tienda.js';
 
@@ -34,6 +35,8 @@ const bloques = [
   { titulo: 'En oferta', enlace: '/catalogo', productos: tomar(productos.filter((p) => p.precioAntes)) },
   { titulo: 'Del catálogo', enlace: '/catalogo', productos: productos.filter((p) => !enBloque.has(p.id)).slice(0, 8) },
 ].filter((b) => b.productos.length > 0);
+
+const cuantosEn = (slug) => productos.filter((p) => p.categoria === slug).length;
 
 const beneficios = [
   { t: 'Envíos a todo el Perú', d: 'Delivery el mismo día en Lima' },
@@ -114,6 +117,8 @@ const beneficios = [
     </div>
   </section>
 
+  <Greca />
+
   <!-- ── Beneficios ──────────────────────────────────────────── -->
   <section class="beneficios">
     <div class="env beneficios__env">
@@ -131,10 +136,10 @@ const beneficios = [
   <!-- ── Departamentos ───────────────────────────────────────── -->
   <nav class="env deptos" aria-label="Departamentos">
     {
-      categorias.map((c, i) => (
+      categorias.map((c) => (
         <a href={`/catalogo?categoria=${c.slug}`} class="depto">
-          <span class="depto__insignia" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
           <span class="depto__nombre">{c.nombre}</span>
+          <span class="depto__cuenta">{cuantosEn(c.slug)} productos</span>
         </a>
       ))
     }
@@ -173,7 +178,7 @@ const beneficios = [
   .banner {
     position: relative;
     /* Más horizontal que antes: las categorías quedan visibles sin bajar mucho. */
-    min-height: clamp(300px, 34vw, 420px);
+    min-height: clamp(340px, 38vw, 500px);
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -194,7 +199,7 @@ const beneficios = [
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(to right, color-mix(in srgb, var(--claro) 94%, transparent) 0%, color-mix(in srgb, var(--claro) 78%, transparent) 34%, transparent 62%);
+      linear-gradient(to right, color-mix(in srgb, var(--fondo) 95%, transparent) 0%, color-mix(in srgb, var(--fondo) 80%, transparent) 36%, transparent 64%);
   }
 
   .banner__env {
@@ -208,26 +213,30 @@ const beneficios = [
   }
 
   .banner__kicker {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
+    font-family: var(--titular);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
     color: var(--salvia);
-    margin: 0 0 1rem;
+    margin: 0 0 var(--e-4);
   }
 
   .banner__titulo {
-    font-family: var(--titular);
-    font-size: clamp(2.1rem, 4.4vw, 3.5rem);
-    color: var(--salvia-osc);
-    margin-bottom: 1rem;
+    font-family: var(--display);
+    font-size: var(--t-3xl);
+    font-weight: 600;
+    line-height: 1.03;
+    letter-spacing: -0.02em;
+    color: var(--cafe);
+    margin-bottom: var(--e-5);
   }
 
   .banner__plomo {
-    font-size: 1.06rem;
+    font-size: var(--t-md);
+    line-height: 1.55;
     color: var(--tinta);
     max-width: 36ch;
-    margin-bottom: 1.8rem;
+    margin-bottom: var(--e-6);
   }
 
   .banner__acciones {
@@ -279,9 +288,11 @@ const beneficios = [
   }
 
   /* Beneficios */
+  /* Franja de beneficios en kraft: el verde se reserva para lo que se pulsa. */
   .beneficios {
-    background: var(--salvia);
-    color: var(--sobre-salvia);
+    background: var(--papel);
+    color: var(--tinta);
+    border-bottom: 1px solid var(--linea);
   }
 
   .beneficios__env {
@@ -290,9 +301,9 @@ const beneficios = [
   }
 
   .beneficio {
-    padding: 1.1rem 1.3rem;
+    padding: var(--e-5) var(--e-5);
     text-align: center;
-    border-left: 1px solid var(--linea-salvia);
+    border-left: 1px solid var(--linea-fuerte);
   }
 
   .beneficio:first-child {
@@ -301,62 +312,54 @@ const beneficios = [
 
   .beneficio__t {
     font-family: var(--titular);
-    font-size: 1.02rem;
+    font-size: var(--t-base);
     font-weight: 600;
+    color: var(--salvia);
     margin: 0 0 0.15rem;
   }
 
   .beneficio__d {
-    font-size: 0.8rem;
-    color: var(--jade-claro);
+    font-size: var(--t-sm);
+    color: var(--tinta-suave);
     margin: 0;
   }
 
-  /* Departamentos: botones redondos, minimalistas. La insignia circular
-     hoy lleva el número; cuando haya fotos de categoría, se reemplaza por
-     una imagen dentro del mismo círculo (overflow: hidden ya preparado). */
+  /* Departamentos: el nombre en la slab y cuántos productos tiene. Una
+     regla verde arriba, como el filo de una etiqueta. */
   .deptos {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    padding-block: 2.2rem 0.5rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--e-5);
+    padding-block: var(--e-7) 0;
   }
 
   .depto {
     display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    padding: 0.6rem 1.1rem 0.6rem 0.6rem;
-    border: 2px solid var(--linea-fuerte);
-    border-radius: 999px;
-    transition: border-color 0.2s, background 0.2s;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--e-4);
+    padding: var(--e-4) 0 var(--e-2);
+    border-top: 3px solid var(--salvia);
+    transition: border-color 0.2s;
   }
 
   .depto:hover {
-    border-color: var(--salvia);
-    background: var(--papel);
-  }
-
-  .depto__insignia {
-    flex-shrink: 0;
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    overflow: hidden;
-    display: grid;
-    place-items: center;
-    background: var(--salvia);
-    color: var(--claro);
-    font-family: var(--titular);
-    font-weight: 700;
-    font-size: 0.9rem;
+    border-color: var(--cafe);
   }
 
   .depto__nombre {
-    font-family: var(--titular);
-    font-size: 1.02rem;
-    font-weight: 700;
+    font-family: var(--display);
+    font-size: var(--t-xl);
+    font-weight: 600;
+    line-height: 1.1;
     color: var(--cafe);
+  }
+
+  .depto__cuenta {
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    color: var(--tinta-suave);
+    white-space: nowrap;
   }
 
   .depto:hover .depto__nombre {
@@ -367,19 +370,19 @@ const beneficios = [
   .rejilla {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 2.4rem 1.8rem;
+    gap: var(--e-7) var(--e-6);
   }
 
   .celda-cta {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.6rem;
-    border: 2px solid var(--linea-fuerte);
-    border-radius: var(--radio);
-    padding: 1.6rem;
-    background: transparent;
-    transition: border-color 0.2s;
+    gap: var(--e-4);
+    border: 1px solid var(--linea-fuerte);
+    border-radius: var(--radio-foto);
+    padding: var(--e-6);
+    background: var(--superficie);
+    transition: border-color 0.2s, background 0.2s;
   }
 
   .celda-cta:hover {
@@ -387,17 +390,19 @@ const beneficios = [
   }
 
   .celda-cta__k {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--jade);
+    font-family: var(--titular);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--salvia);
   }
 
   .celda-cta__t {
-    font-family: var(--titular);
-    font-size: 1.2rem;
-    line-height: 1.25;
+    font-family: var(--display);
+    font-size: var(--t-lg);
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--cafe);
   }
 
   /* Responsive */
@@ -411,9 +416,9 @@ const beneficios = [
     .banner__velo {
       background: linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--claro) 95%, transparent) 0%,
-        color-mix(in srgb, var(--claro) 86%, transparent) 45%,
-        color-mix(in srgb, var(--claro) 35%, transparent) 100%
+        color-mix(in srgb, var(--fondo) 95%, transparent) 0%,
+        color-mix(in srgb, var(--fondo) 86%, transparent) 45%,
+        color-mix(in srgb, var(--fondo) 35%, transparent) 100%
       );
     }
     .banner__texto {
@@ -426,15 +431,18 @@ const beneficios = [
     .banner__acciones {
       justify-content: center;
     }
-    .beneficios__env,
-    .deptos {
+    .beneficios__env {
       grid-template-columns: repeat(2, 1fr);
+    }
+    .deptos {
+      grid-template-columns: 1fr;
+      gap: 0;
     }
     .beneficio:nth-child(odd) {
       border-left: none;
     }
     .beneficio:nth-child(n + 3) {
-      border-top: 1px solid var(--linea-salvia);
+      border-top: 1px solid var(--linea-fuerte);
     }
     .rejilla {
       grid-template-columns: repeat(2, 1fr);

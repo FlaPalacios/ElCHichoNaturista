@@ -85,7 +85,8 @@ export default (Alpine) => {
 
     agregar(producto, cantidad = 1) {
       const existente = this.items.find((i) => i.id === producto.id);
-      const tope = producto.stock ?? 99;
+      // Sin "mostrar agotados" se vende aunque no haya stock: no hay tope real.
+      const tope = tienda.mostrarAgotado ? (producto.stock ?? 99) : 99;
       if (existente) {
         existente.cantidad = Math.min(existente.cantidad + cantidad, tope);
       } else {
@@ -118,7 +119,7 @@ export default (Alpine) => {
         this.quitar(id);
         return;
       }
-      item.cantidad = Math.min(nueva, item.stock ?? 99);
+      item.cantidad = Math.min(nueva, (tienda.mostrarAgotado ? item.stock ?? 99 : 99));
       this.persistir();
     },
 
@@ -126,7 +127,7 @@ export default (Alpine) => {
       const item = this.items.find((i) => i.id === id);
       if (!item) return;
       const n = parseInt(valor, 10);
-      item.cantidad = Number.isNaN(n) || n < 1 ? 1 : Math.min(n, item.stock ?? 99);
+      item.cantidad = Number.isNaN(n) || n < 1 ? 1 : Math.min(n, (tienda.mostrarAgotado ? item.stock ?? 99 : 99));
       this.persistir();
     },
 
@@ -364,8 +365,94 @@ export default (Alpine) => {
       this.form.marca_id = creada.id;
     },
 
-    miniatura(url) {
-      return urlCloudinary(url, 140);
+    miniatura(url, ancho = 520) {
+      return urlCloudinary(url, ancho);
+    },
+
+    // ── Visor: la foto a pantalla grande para saber bien cuál es ──
+    visor: null,
+
+    verFoto(url, titulo = '') {
+      // ~440 px en pantalla; se pide al doble para que se vea nítida.
+      this.visor = { url: urlCloudinary(url, 900), titulo };
+    },
+
+    // ── Biblioteca: todo lo que ya está subido a Cloudinary ──
+    biblioteca: false,
+    bibItems: [],
+    bibTotal: 0,
+    bibCargando: false,
+    bibError: '',
+    bibBuscar: '',
+    bibSoloLibres: false,
+    bibSel: null,
+
+    async abrirBiblioteca() {
+      this.biblioteca = true;
+      this.bibSel = null;
+      this.bibError = '';
+      this.bibCargando = true;
+      const r = await peticionAdmin('/fotos', 'GET', null, true);
+      this.bibCargando = false;
+      if (!r.ok) {
+        this.bibError = r.error;
+        return;
+      }
+      this.bibItems = r.datos.fotos;
+      this.bibTotal = r.datos.total;
+    },
+
+    get bibFiltradas() {
+      const q = this.bibBuscar.trim().toLowerCase();
+      return this.bibItems.filter((f) => {
+        if (this.bibSoloLibres && f.usada_en.length) return false;
+        if (!q) return true;
+        const texto = [f.public_id, ...f.usada_en.flatMap((u) => [u.codigo, u.nombre])]
+          .join(' ')
+          .toLowerCase();
+        return texto.includes(q);
+      });
+    },
+
+    get bibLibres() {
+      return this.bibItems.filter((f) => !f.usada_en.length).length;
+    },
+
+    yaEnProducto(foto) {
+      return this.fotos.some((f) => f.url === foto.url);
+    },
+
+    // Elegir una foto la marca; se agrega al producto con el botón de abajo.
+    seleccionarFoto(foto) {
+      this.bibSel = this.bibSel?.public_id === foto.public_id ? null : foto;
+      this.bibError = '';
+    },
+
+    async usarSeleccionada() {
+      const foto = this.bibSel;
+      if (!foto) return;
+      const r = await peticionAdmin(
+        `/productos/${this.form.codigo}/imagenes/existente`,
+        'POST',
+        { public_id: foto.public_id },
+        true
+      );
+      if (!r.ok) {
+        this.bibError = r.error;
+        return;
+      }
+      this.fotos = r.datos.imagenes ?? [];
+      this.biblioteca = false;
+      this.errorFicha = false;
+      this.mensajeFicha = 'Foto agregada al producto';
+      // Anota el nuevo uso para que la lista no quede desactualizada.
+      foto.usada_en = [...foto.usada_en, { codigo: this.form.codigo, nombre: this.form.nombre }];
+      this.bibSel = null;
+    },
+
+    tamano(bytes) {
+      if (!bytes) return '';
+      return bytes > 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
     },
 
     async abrirNuevo() {
@@ -482,7 +569,16 @@ export default (Alpine) => {
     },
 
     async borrarFoto(id) {
-      if (!confirm('Se borra también de Cloudinary y no se puede deshacer. ¿Continuar?')) return;
+      const otras = this.fotos.length > 1 ? '' : ' El producto se quedará sin fotos.';
+      if (
+        !confirm(
+          'Se quita esta foto del producto. Si ningún otro producto la usa, también se borra de Cloudinary y no se puede deshacer.' +
+            otras +
+            ' ¿Continuar?'
+        )
+      ) {
+        return;
+      }
       const p = await peticionAdmin(
         `/productos/${this.form.codigo}/imagenes/${id}`,
         'DELETE'
