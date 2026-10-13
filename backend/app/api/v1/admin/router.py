@@ -6,6 +6,7 @@ from app.api.v1.admin import (
     auth,
     clasificacion,
     configuracion,
+    exportar,
     pedidos,
     productos,
     resumen,
@@ -20,3 +21,4 @@ router.include_router(clasificacion.router)
 router.include_router(resumen.router)
 router.include_router(ventas.router)
 router.include_router(configuracion.router)
+router.include_router(exportar.router)

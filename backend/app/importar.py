@@ -206,7 +206,9 @@ def procesar(sesion: Session, filas: list[dict[str, str]], *, aplicar: bool) -> 
                 "subcategoria_id": subcategorias[sub],
                 "precio": precio,
                 "precio_antes": _decimal(fila.get("precio_antes", ""), "precio_antes"),
-                "stock": _entero(fila.get("stock", ""), "stock"),
+                # En un producto que ya existe el stock se ignora (ver abajo),
+                # así que una celda mal escrita no debe frenar la fila.
+                "stock": 0 if existente else _entero(fila.get("stock", ""), "stock"),
                 "activo": _booleano(fila.get("activo", ""), "activo", existente.activo if existente else True),
                 "destacado": _booleano(fila.get("destacado", ""), "destacado", existente.destacado if existente else False),
                 "mas_vendido": _booleano(fila.get("mas_vendido", ""), "mas_vendido", existente.mas_vendido if existente else False),
@@ -220,6 +222,9 @@ def procesar(sesion: Session, filas: list[dict[str, str]], *, aplicar: bool) -> 
                 datos = ProductoCrear(**datos, codigo=codigo).model_dump()
             else:
                 datos = ProductoEntrada(**datos).model_dump()
+                # El stock lo manda la web (pedidos, compras, ajustes): la
+                # planilla solo lo usa para dar de alta un producto nuevo.
+                datos.pop("stock")
         except ValueError as error:  # incluye ValidationError
             detalle = (
                 _mensaje_pydantic(error) if isinstance(error, ValidationError) else str(error)
@@ -244,5 +249,6 @@ def procesar(sesion: Session, filas: list[dict[str, str]], *, aplicar: bool) -> 
         "creados": len(creados),
         "actualizados": len(actualizados),
         "codigos_nuevos": creados,
+        "filas_con_error": len(errores),
         "errores": errores,
     }

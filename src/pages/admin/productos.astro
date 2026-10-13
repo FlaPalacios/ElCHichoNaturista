@@ -170,8 +170,9 @@ const hayFiltros = [...consulta.keys()].some((k) => k !== 'orden');
         <div>
           <p>
             Se van a crear <strong x-text="previa.creados"></strong> productos y actualizar
-            <strong x-text="previa.actualizados"></strong>. Las celdas de texto vacías borran el
-            dato actual; las de activo, destacado y más vendido vacías lo dejan como está.
+            <strong x-text="previa.actualizados"></strong>. El stock de los productos que ya existen
+            no se modifica; el de la planilla solo se usa en los nuevos. Las celdas de texto vacías
+            borran el dato actual; las de activo, destacado y más vendido vacías lo dejan como está.
           </p>
           <p class="previa__aviso" x-show="previa.codigos_nuevos.length" x-text="'Nuevos: ' + previa.codigos_nuevos.join(', ')"></p>
           <div class="acciones">

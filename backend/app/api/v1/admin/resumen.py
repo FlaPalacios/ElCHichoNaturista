@@ -18,12 +18,12 @@ router = APIRouter(tags=["admin"])
 
 # Un pedido cuenta como venta desde que el pago está confirmado.
 ESTADOS_VENDIDOS = (
-    EstadoPedido.pago_confirmado,
-    EstadoPedido.preparando,
+    EstadoPedido.pagado,
     EstadoPedido.enviado,
-    EstadoPedido.entregado,
+    EstadoPedido.completado,
 )
-ESTADOS_PENDIENTES = (EstadoPedido.nuevo, EstadoPedido.pago_confirmado)
+# Los que esperan que Fernando haga algo: confirmar el pago o despachar.
+ESTADOS_PENDIENTES = (EstadoPedido.pendiente, EstadoPedido.pagado)
 
 
 class ProductoEscaso(BaseModel):
@@ -41,8 +41,9 @@ class MasVendido(BaseModel):
 
 class PedidoBreve(BaseModel):
     numero_pedido: str
+    codigo_venta: str
     nombre_contacto: str
-    telefono_contacto: str
+    telefono_contacto: str | None = None
     estado: EstadoPedido
     total: Decimal
     creado_en: datetime
@@ -153,7 +154,11 @@ def clientes(
             func.sum(Pedido.total).label("gastado"),
             func.max(Pedido.creado_en).label("ultima"),
         )
-        .where(Pedido.estado != EstadoPedido.no_concretado)
+        # Las ventas manuales sin teléfono no son un cliente contactable.
+        .where(
+            Pedido.estado != EstadoPedido.cancelado,
+            Pedido.telefono_contacto.is_not(None),
+        )
         .group_by(Pedido.telefono_contacto)
         .order_by(func.max(Pedido.creado_en).desc())
     ).all()

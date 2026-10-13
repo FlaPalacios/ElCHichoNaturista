@@ -11,12 +11,14 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
     Index,
     Integer,
     Numeric,
+    Sequence,
     String,
     Text,
     UniqueConstraint,
@@ -32,19 +34,16 @@ from app.database import Base
 class EstadoPedido(str, enum.Enum):
     """Estados por los que pasa un pedido coordinado por WhatsApp.
 
-    El camino normal es nuevo → pago_confirmado → preparando → enviado →
-    entregado. `cancelado` y `no_concretado` son finales: el primero cuando se
-    cancela un pedido que iba en serio, el segundo cuando el cliente nunca
-    llegó a confirmar.
+    Son los mismos que usa el Google Sheet de costos. El camino normal es
+    pendiente → pagado → enviado → completado; `cancelado` puede ocurrir en
+    cualquier punto. El stock baja al pasar a `pagado`.
     """
 
-    nuevo = "nuevo"
-    pago_confirmado = "pago_confirmado"
-    preparando = "preparando"
+    pendiente = "pendiente"
+    pagado = "pagado"
     enviado = "enviado"
-    entregado = "entregado"
+    completado = "completado"
     cancelado = "cancelado"
-    no_concretado = "no_concretado"
 
 
 class Marca(Base):
@@ -318,19 +317,29 @@ class Pedido(Base):
     __tablename__ = "pedidos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # El código que ve el cliente: ECN-AAMMDD-NNNN en la web, V-NNN en las
+    # ventas registradas a mano.
     numero_pedido: Mapped[str] = mapped_column(
         String(20), nullable=False, unique=True, index=True
+    )
+    # Numeración interna de ventas compartida con el Google Sheet (V-001,
+    # V-002…). La da la base al crear el pedido; ver `codigo_venta`.
+    correlativo: Mapped[int] = mapped_column(
+        Integer, Sequence("pedidos_correlativo_seq"), nullable=False, unique=True
     )
     cliente_id: Mapped[int | None] = mapped_column(
         ForeignKey("clientes.id", ondelete="SET NULL")
     )
+    # "web" o "manual": las ventas registradas a mano pueden no tener
+    # teléfono ni dirección.
+    origen: Mapped[str] = mapped_column(String(10), nullable=False, server_default="web")
     nombre_contacto: Mapped[str] = mapped_column(String(150), nullable=False)
-    telefono_contacto: Mapped[str] = mapped_column(String(20), nullable=False)
+    telefono_contacto: Mapped[str | None] = mapped_column(String(20))
     email_contacto: Mapped[str | None] = mapped_column(String(150))
 
     # A dónde va. Los nombres se guardan copiados (no por FK) para que el
     # pedido conserve su dirección aunque cambie la tabla de ubigeo.
-    direccion_envio: Mapped[str] = mapped_column(Text, nullable=False)
+    direccion_envio: Mapped[str | None] = mapped_column(Text)
     departamento: Mapped[str | None] = mapped_column(String(100))
     provincia: Mapped[str | None] = mapped_column(String(100))
     distrito: Mapped[str | None] = mapped_column(String(100))
@@ -340,8 +349,11 @@ class Pedido(Base):
     estado: Mapped[EstadoPedido] = mapped_column(
         Enum(EstadoPedido, name="estado_pedido", native_enum=True, validate_strings=True),
         nullable=False,
-        server_default=EstadoPedido.nuevo.value,
+        server_default=EstadoPedido.pendiente.value,
     )
+    # Cuándo entró el dinero. Se llena al pasar a "pagado", pero se puede
+    # corregir a mano si el pago fue otro día.
+    fecha_pago: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     envio: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     nota: Mapped[str | None] = mapped_column(Text)
@@ -356,9 +368,17 @@ class Pedido(Base):
     )
 
     cliente: Mapped[Cliente | None] = relationship(back_populates="pedidos")
+
+    __table_args__ = (
+        CheckConstraint("origen IN ('web', 'manual')", name="ck_pedidos_origen"),
+    )
     items: Mapped[list["PedidoItem"]] = relationship(
         back_populates="pedido", cascade="all, delete-orphan"
     )
+
+    @property
+    def codigo_venta(self) -> str:
+        return f"V-{self.correlativo:03d}"
 
     @property
     def subtotal(self) -> Decimal:

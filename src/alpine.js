@@ -16,15 +16,37 @@ const CLAVE_PEDIDOS = 'ecn.pedidos.v1';
 
 // Cómo se le cuenta al cliente en qué va su pedido.
 const ESTADOS = {
-  nuevo: 'Recibido',
-  pago_confirmado: 'Pago confirmado',
-  preparando: 'Preparando',
+  pendiente: 'Recibido',
+  pagado: 'Pago confirmado',
   enviado: 'En camino',
-  entregado: 'Entregado',
+  completado: 'Entregado',
   cancelado: 'Cancelado',
-  no_concretado: 'Sin confirmar',
 };
 
+// Cómo se llaman en el panel: los mismos nombres que en el Google Sheet.
+const ESTADOS_PANEL = {
+  pendiente: 'Pendiente',
+  pagado: 'Pagado',
+  enviado: 'Enviado',
+  completado: 'Completado',
+  cancelado: 'Cancelado',
+};
+
+// Fecha y hora de Lima en el formato de <input type="datetime-local">.
+function fechaParaInput(iso) {
+  if (!iso) return '';
+  const partes = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Lima',
+      hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    })
+      .formatToParts(new Date(iso))
+      .map((p) => [p.type, p.value])
+  );
+  return `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}`;
+}
 
 /** Llama al panel a través de /api/admin, que es quien lleva el token. */
 async function peticionAdmin(ruta, metodo = 'GET', cuerpo = null, detallado = false) {
@@ -36,7 +58,10 @@ async function peticionAdmin(ruta, metodo = 'GET', cuerpo = null, detallado = fa
     });
     const datos = await respuesta.json().catch(() => ({}));
     if (!respuesta.ok) {
-      const error = datos.detail ?? 'No se pudo guardar.';
+      // Las validaciones de FastAPI llegan como lista de errores.
+      const error = Array.isArray(datos.detail)
+        ? datos.detail.map((e) => e.msg).join('. ')
+        : datos.detail ?? 'No se pudo guardar.';
       return detallado ? { ok: false, error: String(error) } : null;
     }
     return detallado ? { ok: true, datos } : datos;
@@ -185,11 +210,14 @@ export default (Alpine) => {
   // /api/admin, que es quien tiene el token de la sesión.
   Alpine.data('pedidoAdmin', (inicial) => ({
     ...inicial,
+    fechaPago: fechaParaInput(inicial.fechaPagoIso),
     abierto: false,
     mensaje: '',
+    // El último estado que la API aceptó, para volver a él si rechaza el cambio.
+    estadoGuardado: inicial.estado,
 
     nombreEstado() {
-      return ESTADOS[this.estado] ?? this.estado;
+      return ESTADOS_PANEL[this.estado] ?? this.estado;
     },
 
     async _guardar(ruta, cuerpo, aviso) {
@@ -203,10 +231,12 @@ export default (Alpine) => {
         if (!respuesta.ok) {
           const datos = await respuesta.json().catch(() => ({}));
           this.mensaje = datos.detail ?? 'No se pudo guardar.';
+          this.estado = this.estadoGuardado; // el cambio no se hizo
           return false;
         }
         const pedido = await respuesta.json();
-        this.estado = pedido.estado;
+        this.estado = this.estadoGuardado = pedido.estado;
+        this.fechaPago = fechaParaInput(pedido.fecha_pago);
         this.mensaje = aviso;
         setTimeout(() => (this.mensaje = ''), 2500);
         return true;
@@ -228,8 +258,127 @@ export default (Alpine) => {
       );
     },
 
+    guardarFechaPago() {
+      return this._guardar(
+        'fecha-pago',
+        { fecha_pago: this.fechaPago || null },
+        'Fecha de pago guardada'
+      );
+    },
+
     guardarNota() {
       return this._guardar('nota', { nota_interna: this.nota || null }, 'Nota guardada');
+    },
+  }));
+
+  // Registrar una venta cerrada fuera de la web (WhatsApp, en persona).
+  Alpine.data('ventaManual', (productos) => ({
+    productos,
+    abierto: false,
+    guardando: false,
+    error: '',
+    form: null,
+
+    _vacio() {
+      return {
+        nombre: '',
+        telefono: '',
+        fecha: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }),
+        lineas: [{ producto_id: '', cantidad: 1, precio: '' }],
+        envio: '0',
+        pagado: true,
+        nota: '',
+      };
+    },
+
+    init() {
+      this.form = this._vacio();
+    },
+
+    abrir() {
+      this.form = this._vacio();
+      this.error = '';
+      this.abierto = true;
+    },
+
+    cerrar() {
+      if (!this.guardando) this.abierto = false;
+    },
+
+    producto(id) {
+      return this.productos.find((p) => p.id === Number(id));
+    },
+
+    etiquetaProducto(p) {
+      return `${p.codigo} · ${p.nombre} (quedan ${p.stock})${p.activo ? '' : ' · inactivo'}`;
+    },
+
+    // Al elegir el producto se propone su precio de lista; se puede cambiar.
+    elegido(linea) {
+      const p = this.producto(linea.producto_id);
+      linea.precio = p ? Number(p.precio).toFixed(2) : '';
+    },
+
+    agregarLinea() {
+      this.form.lineas.push({ producto_id: '', cantidad: 1, precio: '' });
+    },
+
+    quitarLinea(i) {
+      this.form.lineas.splice(i, 1);
+    },
+
+    get subtotal() {
+      return this.form.lineas.reduce(
+        (suma, l) => suma + (Number(l.cantidad) || 0) * (Number(l.precio) || 0),
+        0
+      );
+    },
+
+    get total() {
+      return this.subtotal + (Number(this.form.envio) || 0);
+    },
+
+    soles: (n) => 'S/ ' + Number(n).toFixed(2),
+
+    async guardar() {
+      const lineas = this.form.lineas.filter((l) => l.producto_id);
+      if (this.form.nombre.trim().length < 2) return (this.error = 'Escribe el nombre del cliente.');
+      if (!lineas.length) return (this.error = 'Agrega al menos un producto.');
+      if (lineas.some((l) => !(Number(l.cantidad) >= 1))) return (this.error = 'Revisa las cantidades.');
+      if (this.form.pagado) {
+        const pedidas = {};
+        for (const l of lineas) pedidas[l.producto_id] = (pedidas[l.producto_id] ?? 0) + Number(l.cantidad);
+        const falta = Object.entries(pedidas).find(([id, n]) => this.producto(id).stock < n);
+        if (falta) {
+          const p = this.producto(falta[0]);
+          return (this.error = `No alcanza el stock de ${p.nombre}: quedan ${p.stock}.`);
+        }
+      }
+
+      this.guardando = true;
+      this.error = '';
+      const r = await peticionAdmin(
+        '/pedidos/manual',
+        'POST',
+        {
+          nombre_contacto: this.form.nombre.trim(),
+          telefono_contacto: this.form.telefono,
+          fecha: this.form.fecha || null,
+          items: lineas.map((l) => ({
+            producto_id: Number(l.producto_id),
+            cantidad: Number(l.cantidad),
+            precio_unitario: l.precio === '' ? null : Number(l.precio),
+          })),
+          envio: Number(this.form.envio) || 0,
+          pagado: this.form.pagado,
+          nota_interna: this.form.nota,
+        },
+        true
+      );
+      this.guardando = false;
+      if (!r.ok) return (this.error = r.error);
+      // Se muestra la venta recién creada en la lista.
+      location.href = '/admin?q=' + encodeURIComponent(r.datos.codigo_venta);
     },
   }));
 
@@ -852,13 +1001,11 @@ export default (Alpine) => {
         ['anio', 'Este año'],
       ],
       ESTADOS: {
-        nuevo: 'Nuevo',
-        pago_confirmado: 'Pago confirmado',
-        preparando: 'Preparando',
+        pendiente: 'Pendiente',
+        pagado: 'Pagado',
         enviado: 'Enviado',
-        entregado: 'Entregado',
+        completado: 'Completado',
         cancelado: 'Cancelado',
-        no_concretado: 'No concretado',
       },
 
       init() {
@@ -1276,7 +1423,7 @@ export default (Alpine) => {
       return {
         numero,
         fecha: new Date().toISOString(),
-        estado: 'nuevo',
+        estado: 'pendiente',
         cliente: datos,
         items: carrito.items.map((i) => ({
           producto_id: i.id,

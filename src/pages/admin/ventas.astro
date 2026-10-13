@@ -65,7 +65,7 @@ if (!yo) return Astro.redirect('/admin');
           <input type="checkbox" x-model="comparar" @change="cargar()" />
           Comparar con el periodo anterior
         </label>
-        <a class="btn btn--linea" :href="urlExportar" download>Exportar pedidos</a>
+        <a class="btn btn--linea" :href="urlExportar" download>Exportar resumen (TSV)</a>
       </div>
       <p class="mensaje--error" x-show="error" x-text="error" x-cloak></p>
     </section>

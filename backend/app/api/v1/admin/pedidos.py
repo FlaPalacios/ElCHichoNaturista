@@ -1,6 +1,6 @@
 """Pedidos vistos desde el panel: listar, ver, cambiar estado y anotar."""
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,10 +10,12 @@ from sqlalchemy.orm import Session
 from app import crud
 from app.database import obtener_sesion
 from app.models import Admin, EstadoPedido
-from app.schemas import PedidoAdminOut
+from app.schemas import PedidoAdminOut, VentaManualEntrada
 from app.seguridad import admin_actual
 
 router = APIRouter(prefix="/pedidos", tags=["admin"])
+
+LIMA = timezone(timedelta(hours=-5))  # sin horario de verano
 
 
 class CambioEstado(BaseModel):
@@ -21,6 +23,11 @@ class CambioEstado(BaseModel):
     # Al pasar a "enviado" se piden en la misma llamada, para no hacer dos.
     courier: str | None = Field(default=None, max_length=100)
     codigo_seguimiento: str | None = Field(default=None, max_length=100)
+
+
+class CambioFechaPago(BaseModel):
+    # Con zona horaria o sin ella; null borra la fecha.
+    fecha_pago: datetime | None = None
 
 
 class NotaInterna(BaseModel):
@@ -56,6 +63,40 @@ def listar_pedidos(
     return crud.listar_pedidos(sesion, estado=estado, desde=desde, hasta=hasta, q=q)
 
 
+@router.post(
+    "/manual",
+    response_model=PedidoAdminOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registra una venta hecha fuera de la web",
+    responses={422: {"description": "Producto inexistente, sin stock o fecha futura"}},
+)
+def registrar_venta_manual(
+    venta: VentaManualEntrada,
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    """Se comporta como un pedido de la web: el stock baja al quedar pagada.
+    Con `pagado` (por defecto) se marca pagada en el acto."""
+    try:
+        pedido = crud.crear_venta_manual(
+            sesion,
+            nombre_contacto=venta.nombre_contacto.strip(),
+            telefono_contacto=venta.telefono_contacto,
+            fecha=venta.fecha,
+            items=[(i.producto_id, i.cantidad, i.precio_unitario) for i in venta.items],
+            envio=venta.envio,
+            pagado=venta.pagado,
+            nota_interna=venta.nota_interna,
+        )
+    except crud.ErrorPedido as error:
+        sesion.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    sesion.commit()
+    return crud.obtener_pedido_por_numero(sesion, pedido.numero_pedido)
+
+
 @router.get(
     "/{numero_pedido}",
     response_model=PedidoAdminOut,
@@ -85,8 +126,8 @@ def cambiar_estado(
     sesion: Annotated[Session, Depends(obtener_sesion)],
     admin: Annotated[Admin, Depends(admin_actual)],
 ):
-    """Al pasar a `pago_confirmado` se descuenta el stock; si después se
-    cancela o queda sin concretar, vuelve."""
+    """Al pasar a `pagado` se descuenta el stock y se anota la fecha de pago;
+    si después se cancela, el stock vuelve."""
     pedido = _buscar(sesion, numero_pedido)
 
     if cambio.courier is not None:
@@ -102,6 +143,36 @@ def cambiar_estado(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
         ) from error
 
+    sesion.commit()
+    return crud.obtener_pedido_por_numero(sesion, numero_pedido)
+
+
+@router.patch(
+    "/{numero_pedido}/fecha-pago",
+    response_model=PedidoAdminOut,
+    summary="Corrige la fecha de pago",
+    responses={
+        404: {"description": "No existe ese pedido"},
+        422: {"description": "El pedido todavía está pendiente"},
+    },
+)
+def cambiar_fecha_pago(
+    numero_pedido: str,
+    cambio: CambioFechaPago,
+    sesion: Annotated[Session, Depends(obtener_sesion)],
+    admin: Annotated[Admin, Depends(admin_actual)],
+):
+    pedido = _buscar(sesion, numero_pedido)
+    fecha = cambio.fecha_pago
+    if fecha is not None and fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=LIMA)  # la que escribe Fernando es hora de Lima
+    try:
+        crud.cambiar_fecha_pago(sesion, pedido, fecha)
+    except crud.ErrorPedido as error:
+        sesion.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     sesion.commit()
     return crud.obtener_pedido_por_numero(sesion, numero_pedido)
 

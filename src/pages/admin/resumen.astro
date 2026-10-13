@@ -15,13 +15,11 @@ const fecha = (iso) =>
 const mes = new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
 
 const ESTADOS = {
-  nuevo: 'Nuevo',
-  pago_confirmado: 'Pago confirmado',
-  preparando: 'Preparando',
+  pendiente: 'Pendiente',
+  pagado: 'Pagado',
   enviado: 'Enviado',
-  entregado: 'Entregado',
+  completado: 'Completado',
   cancelado: 'Cancelado',
-  no_concretado: 'No concretado',
 };
 ---
 
@@ -72,7 +70,7 @@ const ESTADOS = {
               {r.ultimos_pedidos.map((p) => (
                 <li>
                   <span>
-                    <strong>{p.numero_pedido}</strong>
+                    <strong>{p.codigo_venta}</strong>
                     <span class="pista">{p.nombre_contacto} · {fecha(p.creado_en)}</span>
                   </span>
                   <span class="derecha">

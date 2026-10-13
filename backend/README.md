@@ -95,6 +95,16 @@ uvicorn app.main:app --reload   # http://127.0.0.1:8000
 - Documentación interactiva: http://127.0.0.1:8000/docs
 - Comprobación rápida: http://127.0.0.1:8000/api/v1/salud
 
+### 6. Correr las pruebas
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Usan la misma base del `.env`, pero dentro de un esquema temporal que se borra
+al terminar: no tocan los datos.
+
 ## Endpoints
 
 | Método | Ruta | Qué hace |
@@ -115,7 +125,10 @@ uvicorn app.main:app --reload   # http://127.0.0.1:8000
 | GET | `/api/v1/admin/pedidos` | Lista pedidos (filtros: `estado`, `desde`, `hasta`, `q`) |
 | GET | `/api/v1/admin/pedidos/{numero}` | Detalle de un pedido |
 | PATCH | `/api/v1/admin/pedidos/{numero}/estado` | Cambia el estado (y courier/seguimiento) |
+| PATCH | `/api/v1/admin/pedidos/{numero}/fecha-pago` | Corrige la fecha de pago (sin zona = hora de Lima) |
 | PATCH | `/api/v1/admin/pedidos/{numero}/nota` | Guarda la nota interna |
+| POST | `/api/v1/admin/pedidos/manual` | Registra una venta hecha fuera de la web, devuelve `201` |
+| GET | `/api/v1/admin/export/pedidos.csv` | Historial de pedidos para el Google Sheet (`desde`, `hasta` opcionales) |
 | GET | `/api/v1/admin/productos` | Todo el catálogo, activos e inactivos |
 | POST | `/api/v1/admin/productos` | Crea un producto |
 | PUT | `/api/v1/admin/productos/{codigo}` | Edita un producto |
@@ -189,14 +202,32 @@ Errores:
 | Ubigeo que no existe | 422 | "El distrito 'X' no existe en el padrón del INEI." |
 
 Al crear el pedido **se valida el stock pero no se descuenta**: eso ocurre al
-pasarlo a `pago_confirmado` desde el panel (etapa 6).
+pasarlo a `pagado` desde el panel.
+
+### Número de pedido y número de venta
+
+Cada pedido tiene dos identificadores:
+
+- `numero_pedido`: el que ve el cliente y abre la consulta pública del pedido.
+  En la web es `ECN-AAMMDD-NNNN`; en las ventas manuales, `ECN-M-AAMMDD-NNNN`.
+  La parte al azar evita que alguien recorra los pedidos de otros.
+- `correlativo`: el número de venta interno, que se muestra como `V-001`,
+  `V-002`… (`Pedido.codigo_venta`). Lo comparten la web y el Google Sheet y
+  continúa la numeración de las ventas anteriores a la web. Lo asigna la base
+  (secuencia `pedidos_correlativo_seq`) al crear el pedido.
+
+El panel muestra los dos y busca por cualquiera de ellos (`V-14` sirve).
 
 ### Estados del pedido
 
-`nuevo` → `pago_confirmado` → `preparando` → `enviado` → `entregado`, más
-`cancelado` y `no_concretado`, que son finales. El cliente solo ve una etiqueta
-legible ("Recibido", "En camino"…); los nombres internos están en
-`EstadoPedido` (`app/models.py`).
+`pendiente` → `pagado` → `enviado` → `completado`, más `cancelado`. Son los
+mismos que usa el Google Sheet de costos, que lee la exportación de pedidos. El
+cliente solo ve una etiqueta legible ("Recibido", "En camino"…); los nombres
+internos están en `EstadoPedido` (`app/models.py`).
+
+`fecha_pago` se llena sola al pasar a `pagado` y se puede corregir desde el
+panel si el pago fue otro día. Volver a `pendiente` la borra; cancelar la
+conserva. El panel marca los pedidos pendientes con más de 48 horas.
 
 ### Envío
 
@@ -221,9 +252,9 @@ dirección de ese pedido; es un trade-off de privacidad aceptado
 deliberadamente por ahora. `404` si el número no existe.
 
 **Limitaciones conocidas** (aceptables para el volumen de este negocio, no
-bloquean la etapa): no hay `SELECT ... FOR UPDATE` sobre `stock`, así que dos
-compras simultáneas de la última unidad podrían ambas pasar la validación; y
-una colisión de `numero_pedido` entre dos pedidos del mismo día es
+bloquean la etapa): al crear el pedido el stock solo se valida, así que dos
+clientes pueden pedir la última unidad; el segundo se frena al marcarlo
+`pagado`, que sí bloquea las filas (`FOR UPDATE`). Y una colisión de `numero_pedido` entre dos pedidos del mismo día es
 teóricamente posible (y rarísima) sin que se reintente a nivel de `commit()`.
 
 ## Estructura
@@ -248,9 +279,11 @@ backend/
     api/v1/             categorias, marcas, productos, pedidos, ubigeo, envio, router
     api/v1/admin/       auth, pedidos, productos, clasificacion, resumen,
                         configuracion (todo menos el login pide token)
-  alembic/versions/     Migraciones 0001 a 0008
+  alembic/versions/     Migraciones 0001 a 0013
+  tests/                Pruebas con pytest
   docker-compose.yml    PostgreSQL para desarrollo
   requirements.txt
+  requirements-dev.txt  Lo anterior más pytest, solo para desarrollo
 ```
 
 ## Migraciones
@@ -266,6 +299,11 @@ backend/
 
 | `0007` | Guarda en cada foto el `public_id` que le da Cloudinary |
 | `0008` | Crea `configuracion`: los ajustes de la tienda que antes estaban en el código |
+| `0009` | Papelera para marcas, categorías y subcategorías (`eliminado_en`) |
+| `0010` | Estados a cinco (pendiente, pagado, enviado, completado, cancelado) y `pedidos.fecha_pago` |
+| `0011` | `pedidos.origen` (`web` o `manual`); teléfono y dirección pasan a ser opcionales para las ventas manuales |
+| `0012` | `pedidos.correlativo`: número de venta V-001, V-002… para todos los pedidos, con su secuencia |
+| `0013` | Las ventas manuales que usaban V-NNN como código de pedido pasan a ECN-M-AAMMDD-NNNN |
 
 La `0002` también pone un CHECK que impide guardar un `precio_antes` que no sea
 mayor que el precio vigente: un precio tachado menor no sería una oferta.
@@ -342,12 +380,13 @@ confirmarle a nadie que acertó el usuario.
 | `CLOUDINARY_*` | Subida de fotos desde el panel |
 | `STOCK_BAJO` | Valor inicial del umbral de stock bajo; después se edita en el panel |
 
-**Stock y estados.** El stock se descuenta al entrar a `pago_confirmado` y
-vuelve al almacén si el pedido pasa a `cancelado` o `no_concretado`. En vez de
+**Stock y estados.** El stock se descuenta al entrar a `pagado` y vuelve al
+almacén si el pedido pasa a `cancelado` (o vuelve a `pendiente`). En vez de
 guardar una bandera, se compara si el estado viejo y el nuevo están dentro del
 grupo de estados que retienen mercadería (`ESTADOS_CON_STOCK_TOMADO` en
 `crud.py`), así la operación es segura aunque se repita o se salten estados. Si
-al confirmar no alcanza el stock, responde 422 y no cambia nada.
+al confirmar no alcanza el stock, responde 422 y no cambia nada. Los productos
+se leen con la fila bloqueada, así dos cambios a la vez no se pisan.
 
 **El catálogo se edita en el panel, no en la planilla.** La base es la fuente
 de verdad. `python -m app.seed` solo crea lo que falta: si un producto ya está
@@ -357,7 +396,9 @@ todo a propósito está `--reset`.
 **Exportar e importar.** El panel descarga el catálogo como TSV con las mismas
 columnas que `app/datos/catalogo.tsv`, con BOM para que Excel respete las
 tildes. Ese mismo archivo se puede editar y volver a subir: los productos se
-emparejan por `codigo`, se crean los que falten y se actualizan los demás. Si
+emparejan por `codigo`, se crean los que falten y se actualizan los demás.
+**El stock de los que ya existen no se toca**: la columna `stock` solo se usa
+para dar de alta un producto nuevo. Si
 alguna fila trae una marca o subcategoría que no existe, **no se guarda nada**
 y responde con las líneas que fallaron.
 
@@ -379,6 +420,29 @@ lo que se cambió. El sitio los pide en `GET /api/v1/tienda`.
 subcategoría con productos o una marca con productos no se pueden borrar:
 responden 422 explicando qué hay que mover primero. Los productos tampoco se
 borran, se desactivan.
+
+**Exportación para el Google Sheet.** El botón "Exportar pedidos (CSV)" de la
+página de pedidos descarga `pedidos-AAAA-MM-DD.csv` con el historial completo,
+en todos los estados. El formato es fijo porque el Sheet lee las columnas por
+posición (`app/exportar.py`): "N° pedido" es el número de venta (`V-NNN`) y
+"Código de pedido", la última columna, el `ECN-…` o `ECN-M-…` del cliente. Una fila por producto con el precio cobrado y una fila
+`ENVIO` por pedido (aunque sea 0), fechas AAAA-MM-DD en hora de Lima y solo el
+nombre del cliente. En el Sheet se sube en "Importar pedidos" con
+"Reemplazar la hoja actual", así nada se duplica.
+
+**Ventas anteriores a la web.** `python -m app.ventas_antiguas archivo.csv`
+muestra qué pedidos crearía; con `--aplicar` los guarda como `completado` y
+origen `manual`, sin tocar el stock; su `V-NNN` pasa a ser su número de venta
+y la secuencia se adelanta para que el próximo pedido de la web siga desde ahí. Acepta el formato de la exportación y el
+de la planilla de ventas anterior. Si se corre de nuevo, salta los números que
+ya existen. `--fecha AAAA-MM-DD` se usa para las filas sin fecha.
+
+**Ventas manuales.** "Registrar venta manual", en la página de pedidos, es
+para lo que se vende por WhatsApp o en persona: cliente (teléfono opcional),
+fecha, productos con su precio (por defecto el de lista; se puede cambiar) y
+envío. Se comporta como un pedido de la web: el stock baja al quedar pagada, y
+la casilla "Ya está pagada" la marca así en el acto con la fecha de la venta.
+Acepta productos inactivos.
 
 **La nota interna no sale del panel.** `nota_interna` solo existe en
 `PedidoAdminOut`; el `GET /api/v1/pedidos/{numero}` que puede ver un cliente no

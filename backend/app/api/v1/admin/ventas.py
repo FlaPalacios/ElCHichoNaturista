@@ -34,7 +34,7 @@ router = APIRouter(prefix="/ventas", tags=["admin"])
 LIMA = timezone(timedelta(hours=-5))  # sin horario de verano
 MAX_DIAS = 731
 # "activos": además de los pagados, los nuevos que aún no confirman pago.
-ESTADOS_ACTIVOS = (EstadoPedido.nuevo, *ESTADOS_VENDIDOS)
+ESTADOS_ACTIVOS = (EstadoPedido.pendiente, *ESTADOS_VENDIDOS)
 ESTADOS = {"pagados": ESTADOS_VENDIDOS, "activos": ESTADOS_ACTIVOS}
 
 Agrupar = Literal["auto", "dia", "semana", "mes"]

@@ -1,8 +1,9 @@
 """Consultas a la base de datos. Las rutas no arman SQL: llaman a esto."""
 
 import random
+import re
 from collections.abc import Sequence
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -171,16 +172,24 @@ class StockInsuficiente(ErrorPedido):
         self.solicitado = solicitado
 
 
-def _numero_candidato() -> str:
-    hoy = date.today()
+LIMA = timezone(timedelta(hours=-5))  # sin horario de verano
+
+
+def _numero_candidato(prefijo: str, dia: date) -> str:
     azar = random.randint(1000, 9999)
-    return f"ECN-{hoy:%y%m%d}-{azar}"
+    return f"{prefijo}-{dia:%y%m%d}-{azar}"
 
 
-def generar_numero_pedido(sesion: Session, *, intentos: int = 20) -> str:
-    """Formato ECN-AAMMDD-NNNN, igual al que ya generaba el frontend."""
+def generar_numero_pedido(
+    sesion: Session, *, prefijo: str = "ECN", dia: date | None = None, intentos: int = 20
+) -> str:
+    """ECN-AAMMDD-NNNN en la web; ECN-M-AAMMDD-NNNN en las ventas manuales.
+
+    La parte al azar hace que no se pueda adivinar el código de otro pedido:
+    la consulta pública de un pedido solo pide este número."""
+    dia = dia or date.today()
     for _ in range(intentos):
-        candidato = _numero_candidato()
+        candidato = _numero_candidato(prefijo, dia)
         existe = sesion.scalar(select(Pedido.id).where(Pedido.numero_pedido == candidato))
         if existe is None:
             return candidato
@@ -307,10 +316,9 @@ def obtener_pedido_por_numero(sesion: Session, numero_pedido: str) -> Pedido | N
 # descontado. Fuera de ellos, el stock vuelve al almacén.
 ESTADOS_CON_STOCK_TOMADO = frozenset(
     {
-        EstadoPedido.pago_confirmado,
-        EstadoPedido.preparando,
+        EstadoPedido.pagado,
         EstadoPedido.enviado,
-        EstadoPedido.entregado,
+        EstadoPedido.completado,
     }
 )
 
@@ -337,57 +345,172 @@ def listar_pedidos(
         consulta = consulta.where(Pedido.creado_en < hasta + timedelta(days=1))
     if q:
         patron = f"%{_escapar_like(q.strip())}%"
-        consulta = consulta.where(
+        condicion = (
             Pedido.numero_pedido.ilike(patron, escape="\\")
             | Pedido.telefono_contacto.ilike(patron, escape="\\")
             | Pedido.nombre_contacto.ilike(patron, escape="\\")
         )
+        # "V-14" o "v-014": el número de venta del Sheet.
+        if venta := re.fullmatch(r"v-?(\d+)", q.strip(), flags=re.I):
+            condicion = condicion | (Pedido.correlativo == int(venta.group(1)))
+        consulta = consulta.where(condicion)
 
-    consulta = consulta.order_by(Pedido.creado_en.desc())
+    # A igual fecha (ventas cargadas del mismo día), el número de venta manda.
+    consulta = consulta.order_by(Pedido.creado_en.desc(), Pedido.correlativo.desc())
     return list(sesion.scalars(consulta).unique())
 
 
-def _mover_stock(sesion: Session, pedido: Pedido, signo: int) -> None:
-    """Descuenta (signo -1) o repone (signo +1) el stock de cada item."""
+def _cantidades_por_producto(pedido: Pedido) -> dict[int, int]:
+    """Unidades que pide el pedido de cada producto (una línea repetida suma)."""
+    cantidades: dict[int, int] = {}
     for item in pedido.items:
-        producto = sesion.get(Producto, item.producto_id)
-        if producto is not None:
-            producto.stock += signo * item.cantidad
+        cantidades[item.producto_id] = cantidades.get(item.producto_id, 0) + item.cantidad
+    return cantidades
+
+
+def _bloquear_productos(sesion: Session, ids: list[int]) -> dict[int, Producto]:
+    """Los productos con su fila bloqueada hasta el commit.
+
+    Dos cambios de estado simultáneos sobre el mismo producto esperan uno al
+    otro en vez de leer el mismo stock. Se piden siempre ordenados por id para
+    que dos pedidos con los mismos productos no se bloqueen entre sí."""
+    consulta = (
+        select(Producto)
+        .where(Producto.id.in_(sorted(ids)))
+        .order_by(Producto.id)
+        # `of`: las relaciones joined (marca, subcategoría) no se bloquean.
+        .with_for_update(of=Producto)
+        .execution_options(populate_existing=True)
+    )
+    return {p.id: p for p in sesion.scalars(consulta).unique()}
 
 
 def cambiar_estado(sesion: Session, pedido: Pedido, nuevo: EstadoPedido) -> Pedido:
     """Mueve el pedido de estado y ajusta el stock en consecuencia.
 
-    El stock se descuenta al entrar a `pago_confirmado` y vuelve solo si el
-    pedido se cancela o no se concreta. Comparar "estaba tomado" con "debe
-    estar tomado" hace que la operación sea segura aunque se repita o se salte
-    estados.
+    El stock se descuenta al entrar a un estado pagado y vuelve si el pedido se
+    cancela. Cancelar un pedido pendiente no toca el stock. Comparar "estaba
+    tomado" con "debe estar tomado" hace que la operación sea segura aunque se
+    repita o se salten estados.
+
+    No hace commit: si algo falla (por ejemplo, no alcanza el stock) quien
+    llama hace rollback y nada queda a medias.
     """
+    # Se relee el estado con la fila bloqueada: si otra petición lo cambió un
+    # instante antes, se decide con el estado de verdad.
+    sesion.refresh(pedido, ["estado"], with_for_update=True)
     if pedido.estado == nuevo:
         return pedido
 
     estaba_tomado = pedido.estado in ESTADOS_CON_STOCK_TOMADO
     debe_estar_tomado = nuevo in ESTADOS_CON_STOCK_TOMADO
 
-    if debe_estar_tomado and not estaba_tomado:
-        faltantes = [
-            item
-            for item in pedido.items
-            if (producto := sesion.get(Producto, item.producto_id)) is not None
-            and producto.stock < item.cantidad
-        ]
-        if faltantes:
-            item = faltantes[0]
-            producto = sesion.get(Producto, item.producto_id)
-            raise StockInsuficiente(
-                producto.id, producto.nombre, producto.stock, item.cantidad
-            )
-        _mover_stock(sesion, pedido, -1)
-    elif estaba_tomado and not debe_estar_tomado:
-        _mover_stock(sesion, pedido, +1)
+    if estaba_tomado != debe_estar_tomado:
+        cantidades = _cantidades_por_producto(pedido)
+        productos = _bloquear_productos(sesion, list(cantidades))
+        signo = -1 if debe_estar_tomado else +1
+
+        if debe_estar_tomado:
+            for producto_id, cantidad in cantidades.items():
+                producto = productos[producto_id]
+                if producto.stock < cantidad:
+                    raise StockInsuficiente(
+                        producto.id, producto.nombre, producto.stock, cantidad
+                    )
+        for producto_id, cantidad in cantidades.items():
+            productos[producto_id].stock += signo * cantidad
+
+        # El dinero entra al pasar a un estado pagado; si ya tenía fecha (por
+        # ejemplo, se reactiva un pedido cancelado) se respeta.
+        if debe_estar_tomado and pedido.fecha_pago is None:
+            pedido.fecha_pago = datetime.now(timezone.utc)
+
+    if nuevo == EstadoPedido.pendiente:
+        pedido.fecha_pago = None
 
     pedido.estado = nuevo
     sesion.flush()
+    return pedido
+
+
+def cambiar_fecha_pago(
+    sesion: Session, pedido: Pedido, fecha_pago: datetime | None
+) -> Pedido:
+    """Corrige a mano cuándo se pagó. Un pedido pendiente no tiene fecha de pago."""
+    if pedido.estado == EstadoPedido.pendiente and fecha_pago is not None:
+        raise ErrorPedido("El pedido todavía está pendiente: primero márcalo como pagado.")
+    pedido.fecha_pago = fecha_pago
+    sesion.flush()
+    return pedido
+
+
+def crear_venta_manual(
+    sesion: Session,
+    *,
+    nombre_contacto: str,
+    telefono_contacto: str | None,
+    fecha: date | None,
+    items: Sequence[tuple[int, int, Decimal | None]],  # (producto_id, cantidad, precio)
+    envio: Decimal,
+    pagado: bool,
+    nota_interna: str | None,
+) -> Pedido:
+    """Una venta cerrada fuera de la web (WhatsApp, en persona).
+
+    Se comporta como un pedido normal: nace pendiente y el stock baja al
+    marcarla pagada. Con `pagado` se marca en el acto, con la fecha de la venta
+    como fecha de pago. Acepta productos inactivos y un precio distinto al de
+    lista (un descuento, por ejemplo). No hace commit."""
+    ids = [producto_id for producto_id, _, _ in items]
+    productos = {
+        p.id: p for p in sesion.scalars(select(Producto).where(Producto.id.in_(ids)))
+    }
+    pedidas: dict[int, int] = {}
+    for producto_id, cantidad, _ in items:
+        if producto_id not in productos:
+            raise ProductoNoDisponible(producto_id)
+        pedidas[producto_id] = pedidas.get(producto_id, 0) + cantidad
+    for producto_id, cantidad in pedidas.items():
+        producto = productos[producto_id]
+        if producto.stock < cantidad:
+            raise StockInsuficiente(producto_id, producto.nombre, producto.stock, cantidad)
+
+    hoy = datetime.now(LIMA).date()
+    if fecha is not None and fecha > hoy:
+        raise ErrorPedido("La fecha de la venta no puede ser futura.")
+    # Una venta de otro día se fecha a mediodía, para que no cambie de día.
+    momento = (
+        datetime.now(timezone.utc)
+        if fecha is None or fecha == hoy
+        else datetime.combine(fecha, time(12, 0), tzinfo=LIMA)
+    )
+
+    lineas = [
+        (pid, cantidad, precio if precio is not None else productos[pid].precio)
+        for pid, cantidad, precio in items
+    ]
+    subtotal = sum((c * p for _, c, p in lineas), Decimal("0.00"))
+    pedido = Pedido(
+        numero_pedido=generar_numero_pedido(sesion, prefijo="ECN-M", dia=fecha or hoy),
+        origen="manual",
+        nombre_contacto=nombre_contacto,
+        telefono_contacto=telefono_contacto,
+        envio=envio,
+        total=subtotal + envio,
+        nota_interna=nota_interna,
+        creado_en=momento,
+    )
+    for producto_id, cantidad, precio in lineas:
+        pedido.items.append(
+            PedidoItem(producto_id=producto_id, cantidad=cantidad, precio_unitario=precio)
+        )
+    sesion.add(pedido)
+    sesion.flush()
+
+    if pagado:
+        cambiar_estado(sesion, pedido, EstadoPedido.pagado)
+        pedido.fecha_pago = momento
+        sesion.flush()
     return pedido
 
 

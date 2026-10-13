@@ -1,0 +1,6 @@
+# Datos del negocio: costos, márgenes, proveedores y nombres de clientes.
+# Se quedan en el disco, no se suben a GitHub.
+*.xlsx
+*.csv
+*.docx
+*.pdf

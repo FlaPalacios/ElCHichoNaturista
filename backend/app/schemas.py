@@ -1,10 +1,17 @@
 """Esquemas Pydantic: la forma en que la API entrega los datos."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.models import EstadoPedido
 
@@ -130,9 +137,9 @@ class PedidoOut(BaseModel):
     numero_pedido: str = Field(examples=["ECN-260915-4471"])
     estado: EstadoPedido
     nombre_contacto: str
-    telefono_contacto: str
+    telefono_contacto: str | None = None
     email_contacto: str | None = None
-    direccion_envio: str
+    direccion_envio: str | None = None
     departamento: str | None = None
     provincia: str | None = None
     distrito: str | None = None
@@ -146,12 +153,39 @@ class PedidoOut(BaseModel):
     creado_en: datetime
 
 
+class LineaVentaManual(BaseModel):
+    producto_id: int
+    cantidad: int = Field(ge=1, le=999)
+    # Vacío = el precio de lista del producto.
+    precio_unitario: Decimal | None = Field(default=None, ge=0)
+
+
+class VentaManualEntrada(BaseModel):
+    """Una venta cerrada fuera de la web, registrada desde el panel."""
+
+    nombre_contacto: str = Field(min_length=2, max_length=150)
+    telefono_contacto: str | None = Field(default=None, max_length=20)
+    fecha: date | None = None  # vacío = hoy
+    items: list[LineaVentaManual] = Field(min_length=1, max_length=50)
+    envio: Decimal = Field(default=Decimal("0.00"), ge=0)
+    pagado: bool = True
+    nota_interna: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("telefono_contacto", "nota_interna", mode="before")
+    @classmethod
+    def _vacio_es_none(cls, valor):
+        return valor.strip() or None if isinstance(valor, str) else valor
+
+
 class PedidoAdminOut(PedidoOut):
     """Lo mismo que ve el cliente, más lo que solo existe en el panel."""
 
     courier: str | None = None
     codigo_seguimiento: str | None = None
     nota_interna: str | None = None
+    fecha_pago: datetime | None = None
+    origen: str = "web"
+    codigo_venta: str = Field(examples=["V-014"])
 
 
 # ── Panel: catálogo ──────────────────────────────────────────────────
